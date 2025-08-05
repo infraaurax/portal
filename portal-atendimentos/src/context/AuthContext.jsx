@@ -25,7 +25,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = (email, password) => {
     if (email === mockUser.email && password === mockUser.password) {
-      setUser({ email });
+      setUser({ 
+        email,
+        perfil: 'Admin',
+        nome: 'Administrador'
+      });
       setIsAuthenticated(true);
       setNeedsPasswordChange(mockUser.firstLogin);
       return { success: true };
