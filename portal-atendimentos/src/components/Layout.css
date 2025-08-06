@@ -82,9 +82,27 @@
   color: #666;
 }
 
-.status-active {
-  color: #22c55e;
+.status-indicator {
   font-weight: 600;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.status-active {
+  color: #221C62;
+  background-color: rgba(34, 28, 98, 0.1);
+  
+}
+
+.status-inactive {
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.status-paused {
+  color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.1);
 }
 
 .nav-item {

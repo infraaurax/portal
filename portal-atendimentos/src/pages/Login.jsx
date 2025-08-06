@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import './Login.css';
 
 const Login = () => {
-  const [email, setEmail] = useState('admin@aurax.com');
+  const [email, setEmail] = useState('joao.silva@aurax.com');
   const [password, setPassword] = useState('123456');
   const [error, setError] = useState('');
   const { login, isAuthenticated } = useAuth();
@@ -74,7 +74,7 @@ const Login = () => {
           
           <div className="test-credentials">
             <p className="credentials-title">Credenciais de teste:</p>
-            <p>Email: admin@aurax.com</p>
+            <p>Email: joao.silva@aurax.com</p>
             <p>Senha: 123456</p>
           </div>
         </div>

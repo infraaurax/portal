@@ -1,0 +1,359 @@
+/* Dashboard.css */
+
+/* Estilos para habilitação de atendimento */
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.header-text {
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.status-indicator {
+  margin-bottom: 5px;
+}
+
+.status-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  padding: 4px 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-warning {
+  background-color: #ffc107;
+  color: #212529;
+  border: 1px solid #ffc107;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #e0a800;
+  border-color: #d39e00;
+  transform: translateY(-1px);
+}
+
+.btn-warning:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border-color: #dee2e6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-timer {
+  background-color: #17a2b8;
+  color: white;
+  border: 1px solid #17a2b8;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Courier New', monospace;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.btn-timer:hover {
+  background-color: #138496;
+  border-color: #117a8b;
+  transform: translateY(-1px);
+}
+
+/* Estilos da modal de habilitação */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+  background-color: #f8f9fa;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.habilitacao-content {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.senha-gerada {
+  margin-bottom: 30px;
+}
+
+.senha-gerada h4 {
+  margin-bottom: 15px;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.senha-display {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.senha-char {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  background-color: #f8f9fa;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  color: #495057;
+  text-align: center;
+}
+
+.senha-instrucao {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.senha-input {
+  margin-bottom: 20px;
+}
+
+.passcode-container {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.passcode-field {
+  width: 40px;
+  height: 40px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  background-color: white;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.passcode-field:focus {
+  outline: none;
+  border-color: #221C62;
+  box-shadow: 0 0 0 3px rgba(34, 28, 98, 0.25);
+}
+
+.passcode-field:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn-primary {
+  background-color: #221C62;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1a1548;
+}
+
+.btn-primary:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #828282;
+  color: white;
+}
+
+.btn-secondary:disabled {
+  background-color: #adb5bd;
+  cursor: not-allowed;
+}
+
+/* Estilos da modal de confirmação */
+.confirmacao-content {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.confirmacao-message {
+  margin-bottom: 30px;
+}
+
+.confirmacao-texto {
+  font-size: 1.1rem;
+  color: #333;
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.confirmacao-info {
+  font-size: 1.5rem;
+  color: #17a2b8;
+  margin: 0;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+/* Responsividade para header */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+
+  .header-actions {
+    align-items: stretch;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .confirmacao-texto {
+    font-size: 1rem;
+  }
+
+  .btn-timer {
+    min-width: 100px;
+    font-size: 0.8rem;
+  }
+
+  .status-indicator {
+    text-align: center;
+  }
+}
+
+
+.passcode-field {
+  width: 60px;
+  height: 60px;
+  line-height: 35px;
+  font-size: 1.3rem;
+}
+
+.passcode-container {
+  gap: 6px;
+}
+
+.modal-actions {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-content {
+  width: 95%;
+  margin: 10px;
+}

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import './Layout.css';
 
 const Layout = () => {
-  const { logout, user } = useAuth();
+  const { logout, user, atendimentoHabilitado, atendimentoPausado } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -24,8 +24,8 @@ const Layout = () => {
   // Simular dados do usuário para demonstração
   const userData = {
     name: user?.name || 'João Silva',
-    profile: user?.profile || 'Atendente',
-    email: user?.email || 'admin@aurax.com',
+    profile: user?.profile || 'Operador',
+    email: user?.email || 'joao.silva@aurax.com',
     accountStatus: user?.profile === 'Administrador' ? null : 'Habilitado'
   };
 
@@ -60,7 +60,13 @@ const Layout = () => {
                 <span className="user-email">{userData.email}</span>
                 {userData.accountStatus && (
                   <span className="account-status">
-                    Status do atendimento: <span className="status-active">{userData.accountStatus}</span>
+                    Status do atendimento: <span className={`status-indicator ${
+                      atendimentoPausado ? 'status-paused' : 
+                      atendimentoHabilitado ? 'status-active' : 'status-inactive'
+                    }`}>
+                      {atendimentoPausado ? 'Pausado' : 
+                       atendimentoHabilitado ? 'Habilitado' : 'Não Habilitado'}
+                    </span>
                   </span>
                 )}
               </div>

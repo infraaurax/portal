@@ -14,11 +14,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
+  
+  // Estados para atendimento
+  const [atendimentoHabilitado, setAtendimentoHabilitado] = useState(false);
+  const [atendimentoPausado, setAtendimentoPausado] = useState(false);
 
   // Mock de usuário para teste
   // firstLogin alterado para false para evitar redirecionamento obrigatório para mudança de senha
   const mockUser = {
-    email: 'admin@aurax.com',
+    email: 'joao.silva@aurax.com',
     password: '123456',
     firstLogin: false
   };
@@ -48,12 +52,18 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     setNeedsPasswordChange(false);
+    setAtendimentoHabilitado(false);
+    setAtendimentoPausado(false);
   };
 
   const value = {
     user,
     isAuthenticated,
     needsPasswordChange,
+    atendimentoHabilitado,
+    setAtendimentoHabilitado,
+    atendimentoPausado,
+    setAtendimentoPausado,
     login,
     changePassword,
     logout
