@@ -85,8 +85,34 @@
   transform: rotate(90deg);
 }
 
-.category-icon {
-  font-size: 16px;
+.category-index {
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 24px;
+  text-align: center;
+  margin-right: 8px;
+  display: inline-block;
+  background: #3b82f6; /* Cor padrão */
+}
+
+/* Cores diferentes por nível */
+.level-0 .category-index {
+  background: #dc2626; /* Vermelho para categorias principais */
+  font-size: 14px;
+  font-weight: 900;
+  min-width: 28px;
+}
+
+.level-1 .category-index {
+  background: #2563eb; /* Azul para subcategorias */
+}
+
+.level-2 .category-index {
+  background: #16a34a; /* Verde para sub-subcategorias */
+  font-size: 11px;
 }
 
 .category-name {

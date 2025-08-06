@@ -3,23 +3,25 @@ import './PageStyles.css';
 import './Categorias.css';
 
 const Categorias = () => {
-  // Mock data para categorias hierárquicas
+  // Mock data para categorias hierárquicas com sistema de índices
   const [categorias] = useState([
     {
       id: 1,
       nome: 'Suporte Técnico',
       nivel: 0,
       pai: null,
+      indice: 'A',
       filhos: [
         {
           id: 2,
           nome: 'Hardware',
           nivel: 1,
           pai: 1,
+          indice: 'A1',
           filhos: [
-            { id: 3, nome: 'Computadores', nivel: 2, pai: 2, filhos: [] },
-            { id: 4, nome: 'Impressoras', nivel: 2, pai: 2, filhos: [] },
-            { id: 5, nome: 'Periféricos', nivel: 2, pai: 2, filhos: [] }
+            { id: 3, nome: 'Computadores', nivel: 2, pai: 2, indice: 'A1.1', filhos: [] },
+            { id: 4, nome: 'Impressoras', nivel: 2, pai: 2, indice: 'A1.2', filhos: [] },
+            { id: 5, nome: 'Periféricos', nivel: 2, pai: 2, indice: 'A1.3', filhos: [] }
           ]
         },
         {
@@ -27,62 +29,113 @@ const Categorias = () => {
           nome: 'Software',
           nivel: 1,
           pai: 1,
+          indice: 'A2',
           filhos: [
-            { id: 7, nome: 'Sistema Operacional', nivel: 2, pai: 6, filhos: [] },
-            { id: 8, nome: 'Aplicativos', nivel: 2, pai: 6, filhos: [] }
-          ]
-        }
-      ]
-    },
-    {
-      id: 9,
-      nome: 'Atendimento ao Cliente',
-      nivel: 0,
-      pai: null,
-      filhos: [
-        {
-          id: 10,
-          nome: 'Vendas',
-          nivel: 1,
-          pai: 9,
-          filhos: [
-            { id: 11, nome: 'Produtos', nivel: 2, pai: 10, filhos: [] },
-            { id: 12, nome: 'Serviços', nivel: 2, pai: 10, filhos: [] }
+            { id: 7, nome: 'Sistema Operacional', nivel: 2, pai: 6, indice: 'A2.1', filhos: [] },
+            { id: 8, nome: 'Aplicativos', nivel: 2, pai: 6, indice: 'A2.2', filhos: [] }
           ]
         },
         {
-          id: 13,
-          nome: 'Pós-Venda',
+          id: 9,
+          nome: 'Redes',
           nivel: 1,
-          pai: 9,
+          pai: 1,
+          indice: 'A3',
           filhos: [
-            { id: 14, nome: 'Garantia', nivel: 2, pai: 13, filhos: [] },
-            { id: 15, nome: 'Troca/Devolução', nivel: 2, pai: 13, filhos: [] }
+            { id: 10, nome: 'Configuração', nivel: 2, pai: 9, indice: 'A3.1', filhos: [] },
+            { id: 11, nome: 'Conectividade', nivel: 2, pai: 9, indice: 'A3.2', filhos: [] }
           ]
         }
       ]
     },
     {
-      id: 16,
+      id: 12,
+      nome: 'Atendimento ao Cliente',
+      nivel: 0,
+      pai: null,
+      indice: 'B',
+      filhos: [
+        {
+          id: 13,
+          nome: 'Vendas',
+          nivel: 1,
+          pai: 12,
+          indice: 'B1',
+          filhos: [
+            { id: 14, nome: 'Produtos', nivel: 2, pai: 13, indice: 'B1.1', filhos: [] },
+            { id: 15, nome: 'Serviços', nivel: 2, pai: 13, indice: 'B1.2', filhos: [] },
+            { id: 16, nome: 'Consultoria', nivel: 2, pai: 13, indice: 'B1.3', filhos: [] }
+          ]
+        },
+        {
+          id: 17,
+          nome: 'Pós-Venda',
+          nivel: 1,
+          pai: 12,
+          indice: 'B2',
+          filhos: [
+            { id: 18, nome: 'Garantia', nivel: 2, pai: 17, indice: 'B2.1', filhos: [] },
+            { id: 19, nome: 'Troca/Devolução', nivel: 2, pai: 17, indice: 'B2.2', filhos: [] },
+            { id: 20, nome: 'Manutenção', nivel: 2, pai: 17, indice: 'B2.3', filhos: [] }
+          ]
+        }
+      ]
+    },
+    {
+      id: 21,
       nome: 'Financeiro',
       nivel: 0,
       pai: null,
+      indice: 'C',
       filhos: [
         {
-          id: 17,
+          id: 22,
           nome: 'Cobrança',
           nivel: 1,
-          pai: 16,
+          pai: 21,
+          indice: 'C1',
           filhos: [
-            { id: 18, nome: 'Boletos', nivel: 2, pai: 17, filhos: [] },
-            { id: 19, nome: 'Cartão de Crédito', nivel: 2, pai: 17, filhos: [] }
+            { id: 23, nome: 'Boletos', nivel: 2, pai: 22, indice: 'C1.1', filhos: [] },
+            { id: 24, nome: 'Cartão de Crédito', nivel: 2, pai: 22, indice: 'C1.2', filhos: [] },
+            { id: 25, nome: 'PIX', nivel: 2, pai: 22, indice: 'C1.3', filhos: [] }
+          ]
+        },
+        {
+          id: 26,
+          nome: 'Faturamento',
+          nivel: 1,
+          pai: 21,
+          indice: 'C2',
+          filhos: [
+            { id: 27, nome: 'Notas Fiscais', nivel: 2, pai: 26, indice: 'C2.1', filhos: [] },
+            { id: 28, nome: 'Relatórios', nivel: 2, pai: 26, indice: 'C2.2', filhos: [] }
+          ]
+        }
+      ]
+    },
+    {
+      id: 29,
+      nome: 'Recursos Humanos',
+      nivel: 0,
+      pai: null,
+      indice: 'D',
+      filhos: [
+        {
+          id: 30,
+          nome: 'Recrutamento',
+          nivel: 1,
+          pai: 29,
+          indice: 'D1',
+          filhos: [
+            { id: 31, nome: 'Seleção', nivel: 2, pai: 30, indice: 'D1.1', filhos: [] },
+            { id: 32, nome: 'Entrevistas', nivel: 2, pai: 30, indice: 'D1.2', filhos: [] }
           ]
         }
       ]
     }
   ]);
 
-  const [expandedCategories, setExpandedCategories] = useState(new Set([1, 9, 16]));
+  const [expandedCategories, setExpandedCategories] = useState(new Set([1, 12, 21, 29]));
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState(''); // 'create', 'edit', 'delete'
@@ -196,7 +249,7 @@ const Categorias = () => {
                 ▶
               </span>
             )}
-            <span className="category-icon">📁</span>
+            <span className="category-index">{category.indice}</span>
             <span className="category-name">{category.nome}</span>
           </div>
           <div className="category-actions">
