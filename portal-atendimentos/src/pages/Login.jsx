@@ -27,7 +27,8 @@ const Login = () => {
     <div className="login-container">
       <div className="login-logo-section">
         <div className="logo-container">
-          <img src="/logo_xl.jpeg" alt="Logo AURAX" />
+          <img src="/img_login.png" alt="Logo AURAX" />
+
         </div>
       </div>
       

@@ -90,9 +90,8 @@
 }
 
 .status-active {
-  color: #221C62;
-  background-color: rgba(34, 28, 98, 0.1);
-  
+  color: #16a34a;
+  background-color: rgba(22, 163, 74, 0.1);
 }
 
 .status-inactive {

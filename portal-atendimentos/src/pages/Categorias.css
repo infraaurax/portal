@@ -250,6 +250,15 @@
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
+.modal-content-info {
+  background: white;
+  border-radius: 18px;
+  width: 90%;
+  max-width: 1024px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
 
 .modal-header {
   display: flex;

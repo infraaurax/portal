@@ -29,6 +29,13 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   min-height: 400px;
 }
+.page-content-dashboard {
+  background: white;
+  border-radius: 12px;
+  padding: 0px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  min-height: 400px;
+}
 
 .content-placeholder {
   display: flex;
