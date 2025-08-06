@@ -14,15 +14,7 @@ const Usuarios = () => {
 
   // Mock data - substituir pela integração com Supabase
   const [usuarios, setUsuarios] = useState([
-    {
-      id: 1,
-      nome: 'João Silva',
-      email: 'joao@aurax.com.br',
-      perfil: 'Admin',
-      status: 'Ativo',
-      dataCriacao: '2024-01-15',
-      ultimoAcesso: '2024-01-20'
-    },
+    
     {
       id: 2,
       nome: 'Maria Santos',
