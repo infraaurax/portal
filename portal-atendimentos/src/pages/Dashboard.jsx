@@ -679,16 +679,31 @@ const Dashboard = () => {
             <div className="chat-messages">
               {/* Mensagens do chat */}
               {atendimentoSelecionado && conversas[atendimentoSelecionado.id] ? (
-                conversas[atendimentoSelecionado.id].map((mensagem, index) => (
-                  <div key={index} className="message-group">
-                    <div className={`message ${mensagem.tipo}`}>
-                      <div className="message-content">
-                        <p>{mensagem.mensagem}</p>
-                        <span className="message-time">{mensagem.horario}</span>
+                conversas[atendimentoSelecionado.id].map((mensagem, index) => {
+                  // Função para obter o label da role
+                  const getRoleLabel = (tipo) => {
+                    switch(tipo) {
+                      case 'ia': return 'Agente IA';
+                      case 'operador': return 'Operador';
+                      case 'cliente': return 'Cliente';
+                      default: return 'Sistema';
+                    }
+                  };
+
+                  return (
+                    <div key={index} className="message-group">
+                      <div className={`message ${mensagem.tipo}`}>
+                        <div className="message-content">
+                          <div className={`message-role-label ${mensagem.tipo}`}>
+                            {getRoleLabel(mensagem.tipo)}
+                          </div>
+                          <p>{mensagem.mensagem}</p>
+                          <span className="message-time">{mensagem.horario}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="no-chat-selected">
                   <div className="no-chat-content">

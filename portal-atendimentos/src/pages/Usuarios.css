@@ -1,10 +1,37 @@
 /* Usuarios.css */
 
+/* Status Message */
+.status-message {
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 8px;
+  font-weight: 500;
+  text-align: center;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.status-message.success {
+  background-color: #d1fae5;
+  border: 1px solid #10b981;
+  color: #065f46;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Toolbar */
 .users-toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 2rem;
   gap: 1rem;
   flex-wrap: wrap;
@@ -149,6 +176,17 @@
 .user-email {
   color: #666;
   font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.user-cpf {
+  color: #666;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.users-table td {
+  font-family: inherit;
 }
 
 /* Badges */
@@ -236,6 +274,31 @@
 .btn-block.unblock:hover {
   background: rgba(34, 197, 94, 0.1);
   transform: scale(1.1);
+}
+
+.btn-resend {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.1rem;
+}
+
+.btn-resend.enabled:hover {
+  background: rgba(59, 130, 246, 0.1);
+  transform: scale(1.1);
+}
+
+.btn-resend.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-resend.disabled:hover {
+  transform: none;
+  background: none;
 }
 
 /* Modal */
@@ -382,7 +445,7 @@
 @media (max-width: 768px) {
   .users-toolbar {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
   }
   
   .search-filters {

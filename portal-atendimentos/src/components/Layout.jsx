@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import packageJson from '../../package.json';
 import './Layout.css';
 
 const Layout = () => {
@@ -34,6 +35,9 @@ const Layout = () => {
       <header className="top-header">
         <div className="header-left">
           <img src="/aurax-logo.svg" alt="Logo Aurax" className="header-logo" />
+          <div className="version-info">
+            <span className="version-label">v{packageJson.version}</span>
+          </div>
         </div>
         
         <div className="header-center">

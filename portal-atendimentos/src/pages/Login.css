@@ -175,6 +175,19 @@
   font-family: 'Courier New', monospace;
 }
 
+.login-version {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.login-version .version-label {
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 500;
+  padding: 4px 8px;
+  display: inline-block;
+}
+
 @media (max-width: 768px) {
   .login-container {
     flex-direction: column;

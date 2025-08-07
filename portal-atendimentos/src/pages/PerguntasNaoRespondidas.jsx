@@ -148,9 +148,7 @@ const PerguntasNaoRespondidas = () => {
                       <span className="question-date">📅 {pergunta.dataHora}</span>
                       <span className="question-category">🏷️ {pergunta.categoria}</span>
                     </div>
-                    <div className="question-attempts">
-                      <span className="attempts-badge">{pergunta.tentativasIA} tentativas IA</span>
-                    </div>
+                    
                   </div>
                   <div className="question-content">
                     <h3>{pergunta.pergunta}</h3>
@@ -217,9 +215,7 @@ const PerguntasNaoRespondidas = () => {
                 <div className="detail-row">
                   <strong>Categoria:</strong> {perguntaSelecionada.categoria}
                 </div>
-                <div className="detail-row">
-                  <strong>Tentativas da IA:</strong> {perguntaSelecionada.tentativasIA}
-                </div>
+               
               </div>
               
               <div className="question-text">

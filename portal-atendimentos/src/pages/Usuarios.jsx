@@ -11,14 +11,15 @@ const Usuarios = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProfile, setFilterProfile] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [statusMessage, setStatusMessage] = useState('');
 
   // Mock data - substituir pela integração com Supabase
   const [usuarios, setUsuarios] = useState([
-    
     {
       id: 2,
       nome: 'Maria Santos',
       email: 'maria@aurax.com.br',
+      cpf: '123.456.789-01',
       perfil: 'Operador',
       status: 'Ativo',
       dataCriacao: '2024-01-10',
@@ -28,6 +29,7 @@ const Usuarios = () => {
       id: 3,
       nome: 'Pedro Costa',
       email: 'pedro@aurax.com.br',
+      cpf: '987.654.321-09',
       perfil: 'Operador',
       status: 'Bloqueado',
       dataCriacao: '2024-01-05',
@@ -37,10 +39,26 @@ const Usuarios = () => {
 
   const [formData, setFormData] = useState({
     nome: '',
-    email: ''
+    email: '',
+    cpf: ''
   });
 
   const isAdmin = user?.perfil === 'Admin';
+
+  // Função para aplicar máscara de CPF
+  const applyCpfMask = (value) => {
+    // Remove tudo que não é dígito
+    const cleanValue = value.replace(/\D/g, '');
+    
+    // Aplica a máscara XXX.XXX.XXX-XX
+    if (cleanValue.length <= 11) {
+      return cleanValue
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    }
+    return value;
+  };
 
   const handleOpenModal = (type, usuario = null) => {
     setModalType(type);
@@ -48,10 +66,11 @@ const Usuarios = () => {
     if (type === 'edit' && usuario) {
       setFormData({
         nome: usuario.nome,
-        email: usuario.email
+        email: usuario.email,
+        cpf: usuario.cpf || ''
       });
     } else {
-      setFormData({ nome: '', email: '' });
+      setFormData({ nome: '', email: '', cpf: '' });
     }
     setShowModal(true);
   };
@@ -59,7 +78,7 @@ const Usuarios = () => {
   const handleCloseModal = () => {
     setShowModal(false);
     setSelectedUser(null);
-    setFormData({ nome: '', email: '' });
+    setFormData({ nome: '', email: '', cpf: '' });
   };
 
   const handleSubmit = (e) => {
@@ -91,6 +110,12 @@ const Usuarios = () => {
     handleCloseModal();
   };
 
+  const handleResendPassword = (usuario) => {
+    // Simula o reenvio da primeira senha
+    setStatusMessage(`Primeira senha reenviada para ${usuario.email}!`);
+    setTimeout(() => setStatusMessage(''), 3000);
+  };
+
   const filteredUsuarios = usuarios.filter(usuario => {
     const matchesSearch = usuario.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          usuario.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -114,6 +139,12 @@ const Usuarios = () => {
         <h1 className="page-title">Usuários</h1>
         <p className="page-description">Gerencie usuários do sistema</p>
       </div>
+      
+      {statusMessage && (
+        <div className="status-message success">
+          {statusMessage}
+        </div>
+      )}
       
       <div className="page-content">
         {/* Barra de Ações */}
@@ -162,6 +193,7 @@ const Usuarios = () => {
               <tr>
                 <th>Nome</th>
                 <th>Email</th>
+                <th>CPF</th>
                 <th>Perfil</th>
                 <th>Status</th>
                 <th>Data Criação</th>
@@ -174,6 +206,7 @@ const Usuarios = () => {
                 <tr key={usuario.id}>
                   <td className="user-name">{usuario.nome}</td>
                   <td className="user-email">{usuario.email}</td>
+                  <td className="user-cpf">{usuario.cpf || '-'}</td>
                   <td>
                     <span className={`profile-badge ${usuario.perfil.toLowerCase()}`}>
                       {usuario.perfil}
@@ -194,6 +227,14 @@ const Usuarios = () => {
                         title="Editar usuário"
                       >
                         ✏️
+                      </button>
+                      <button
+                        onClick={() => handleResendPassword(usuario)}
+                        className={`btn-resend ${usuario.ultimoAcesso === '-' ? 'enabled' : 'disabled'}`}
+                        disabled={usuario.ultimoAcesso !== '-'}
+                        title={usuario.ultimoAcesso === '-' ? 'Reenviar primeira senha' : 'Usuário já acessou o sistema'}
+                      >
+                        📧
                       </button>
                       <button
                         onClick={() => handleOpenModal('block', usuario)}
@@ -275,7 +316,22 @@ const Usuarios = () => {
                   />
                 </div>
                 
-
+                <div className="form-group">
+                  <label htmlFor="cpf">CPF *</label>
+                  <input
+                    type="text"
+                    id="cpf"
+                    value={formData.cpf}
+                    onChange={(e) => {
+                      const maskedValue = applyCpfMask(e.target.value);
+                      setFormData({...formData, cpf: maskedValue});
+                    }}
+                    required
+                    className="form-input"
+                    placeholder="000.000.000-00"
+                    maxLength="14"
+                  />
+                </div>
                 
                 {modalType === 'create' && (
                   <div className="password-info">

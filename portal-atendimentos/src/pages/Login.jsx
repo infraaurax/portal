@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import packageJson from '../../package.json';
 import './Login.css';
 
 const Login = () => {
@@ -77,6 +78,10 @@ const Login = () => {
             <p className="credentials-title">Credenciais de teste:</p>
             <p>Email: joao.silva@aurax.com</p>
             <p>Senha: 123456</p>
+          </div>
+          
+          <div className="login-version">
+            <span className="version-label">v{packageJson.version}</span>
           </div>
         </div>
       </div>

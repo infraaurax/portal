@@ -670,6 +670,29 @@
   margin-bottom: 15px;
 }
 
+/* Labels de Role das Mensagens */
+.message-role-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  display: block;
+  opacity: 0.8;
+}
+
+.message-role-label.cliente {
+  color: #1b5e20;
+}
+
+.message-role-label.ia {
+  color: #0d47a1;
+}
+
+.message-role-label.operador {
+  color: #e65100;
+}
+
 .message {
   display: flex;
   margin-bottom: 8px;
