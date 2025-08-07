@@ -31,7 +31,7 @@
 .users-toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 2rem;
   gap: 1rem;
   flex-wrap: wrap;
