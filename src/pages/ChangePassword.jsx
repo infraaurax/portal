@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import './ChangePassword.css';
 
 const ChangePassword = () => {
@@ -9,6 +11,9 @@ const ChangePassword = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { changePassword, needsPasswordChange, isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
@@ -19,7 +24,7 @@ const ChangePassword = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -34,11 +39,18 @@ const ChangePassword = () => {
       return;
     }
 
-    const result = changePassword(newPassword);
-    if (result.success) {
-      setSuccess('Senha alterada com sucesso!');
-      // Remove o redirecionamento automático - usuário permanece logado
-    } else {
+    try {
+      const result = await changePassword(newPassword);
+      if (result.success) {
+        setSuccess('Senha alterada com sucesso! Redirecionando...');
+        // Aguardar um pouco antes do redirecionamento para mostrar a mensagem
+        setTimeout(() => {
+          // O redirecionamento será automático quando needsPasswordChange for false
+        }, 2000);
+      } else {
+        setError(result.message || 'Erro ao alterar senha');
+      }
+    } catch (error) {
       setError('Erro ao alterar senha');
     }
   };
@@ -54,38 +66,65 @@ const ChangePassword = () => {
         <form onSubmit={handleSubmit} className="change-password-form">
           <div className="form-group">
             <label htmlFor="currentPassword">Senha Atual</label>
-            <input
-              type="password"
-              id="currentPassword"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              placeholder="Digite sua senha atual"
-            />
+            <div className="password-input-container">
+              <input
+                type={showCurrentPassword ? 'text' : 'password'}
+                id="currentPassword"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                placeholder="Digite sua senha atual"
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+              >
+                <FontAwesomeIcon icon={showCurrentPassword ? faEyeSlash : faEye} />
+              </button>
+            </div>
           </div>
 
           <div className="form-group">
             <label htmlFor="newPassword">Nova Senha</label>
-            <input
-              type="password"
-              id="newPassword"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              placeholder="Digite sua nova senha"
-            />
+            <div className="password-input-container">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                id="newPassword"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                placeholder="Digite sua nova senha"
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+              >
+                <FontAwesomeIcon icon={showNewPassword ? faEyeSlash : faEye} />
+              </button>
+            </div>
           </div>
 
           <div className="form-group">
             <label htmlFor="confirmPassword">Confirmar Nova Senha</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              placeholder="Confirme sua nova senha"
-            />
+            <div className="password-input-container">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                placeholder="Confirme sua nova senha"
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <FontAwesomeIcon icon={showConfirmPassword ? faEyeSlash : faEye} />
+              </button>
+            </div>
           </div>
 
           {error && <div className="error-message">{error}</div>}

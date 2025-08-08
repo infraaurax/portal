@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { buscarTodos, criar, atualizar, alterarStatus } from '../services/operadoresService';
 import './PageStyles.css';
 import './Usuarios.css';
 
@@ -12,30 +13,39 @@ const Usuarios = () => {
   const [filterProfile, setFilterProfile] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [statusMessage, setStatusMessage] = useState('');
+  const [usuarios, setUsuarios] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data - substituir pela integração com Supabase
-  const [usuarios, setUsuarios] = useState([
-    {
-      id: 2,
-      nome: 'Maria Santos',
-      email: 'maria@aurax.com.br',
-      cpf: '123.456.789-01',
-      perfil: 'Operador',
-      status: 'Ativo',
-      dataCriacao: '2024-01-10',
-      ultimoAcesso: '2024-01-19'
-    },
-    {
-      id: 3,
-      nome: 'Pedro Costa',
-      email: 'pedro@aurax.com.br',
-      cpf: '987.654.321-09',
-      perfil: 'Operador',
-      status: 'Bloqueado',
-      dataCriacao: '2024-01-05',
-      ultimoAcesso: '2024-01-15'
-    }
-  ]);
+  // Carregar operadores da tabela
+  useEffect(() => {
+    const carregarOperadores = async () => {
+      try {
+        setLoading(true);
+        const operadores = await buscarTodos();
+        
+        // Mapear dados dos operadores para o formato esperado pela interface
+        const usuariosMapeados = operadores.map(operador => ({
+          id: operador.id,
+          nome: operador.nome,
+          email: operador.email,
+          cpf: operador.cpf || '-',
+          perfil: operador.perfil || operador.tipo || 'Operador',
+          status: operador.habilitado ? 'Ativo' : 'Bloqueado',
+          dataCriacao: operador.data_criacao || operador.created_at,
+          ultimoAcesso: operador.ultimo_acesso || '-'
+        }));
+        
+        setUsuarios(usuariosMapeados);
+      } catch (error) {
+        console.error('Erro ao carregar operadores:', error);
+        setStatusMessage('Erro ao carregar lista de usuários');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    carregarOperadores();
+  }, []);
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -43,7 +53,7 @@ const Usuarios = () => {
     cpf: ''
   });
 
-  const isAdmin = user?.perfil === 'Admin';
+
 
   // Função para aplicar máscara de CPF
   const applyCpfMask = (value) => {
@@ -81,32 +91,105 @@ const Usuarios = () => {
     setFormData({ nome: '', email: '', cpf: '' });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (modalType === 'create') {
-      const novoUsuario = {
-        id: usuarios.length + 1,
-        ...formData,
-        perfil: 'Operador',
-        status: 'Ativo',
-        dataCriacao: new Date().toISOString().split('T')[0],
-        ultimoAcesso: '-'
-      };
-      setUsuarios([...usuarios, novoUsuario]);
+      try {
+        setStatusMessage('Criando usuário...');
+        
+        // Criar usuário no Auth + tabela operadores
+        const novoOperador = await criar({
+          nome: formData.nome,
+          email: formData.email,
+          cpf: formData.cpf,
+          perfil: 'Operador'
+        });
+        
+        // Mapear para o formato da interface
+        const novoUsuario = {
+          id: novoOperador.id,
+          nome: novoOperador.nome,
+          email: novoOperador.email,
+          cpf: novoOperador.cpf || '-',
+          perfil: novoOperador.perfil || 'Operador',
+          status: novoOperador.habilitado ? 'Ativo' : 'Bloqueado',
+          dataCriacao: novoOperador.created_at,
+          ultimoAcesso: '-'
+        };
+        
+        setUsuarios([...usuarios, novoUsuario]);
+        setStatusMessage(`Usuário criado com sucesso! Senha temporária: ${novoOperador.senhaTemporaria}`);
+        
+        // Limpar mensagem após 10 segundos (tempo para copiar a senha)
+        setTimeout(() => setStatusMessage(''), 10000);
+        
+      } catch (error) {
+        console.error('Erro ao criar usuário:', error);
+        setStatusMessage('Erro ao criar usuário: ' + error.message);
+        setTimeout(() => setStatusMessage(''), 5000);
+      }
     } else if (modalType === 'edit') {
-      setUsuarios(usuarios.map(u => 
-        u.id === selectedUser.id ? { ...u, ...formData } : u
-      ));
+      try {
+        setStatusMessage('Atualizando usuário...');
+        
+        // Atualizar usuário na tabela operadores
+        const operadorAtualizado = await atualizar(selectedUser.id, {
+          nome: formData.nome,
+          email: formData.email,
+          cpf: formData.cpf
+        });
+        
+        // Atualizar o estado local com os dados atualizados
+        setUsuarios(usuarios.map(u => 
+          u.id === selectedUser.id ? {
+            ...u,
+            nome: operadorAtualizado.nome,
+            email: operadorAtualizado.email,
+            cpf: operadorAtualizado.cpf || '-'
+          } : u
+        ));
+        
+        setStatusMessage('Usuário atualizado com sucesso!');
+        setTimeout(() => setStatusMessage(''), 3000);
+        
+      } catch (error) {
+        console.error('Erro ao atualizar usuário:', error);
+        setStatusMessage('Erro ao atualizar usuário: ' + error.message);
+        setTimeout(() => setStatusMessage(''), 5000);
+      }
     }
+    
     handleCloseModal();
   };
 
-  const handleBlockUser = () => {
-    setUsuarios(usuarios.map(u => 
-      u.id === selectedUser.id 
-        ? { ...u, status: u.status === 'Ativo' ? 'Bloqueado' : 'Ativo' }
-        : u
-    ));
+  const handleBlockUser = async () => {
+    try {
+      setStatusMessage('Atualizando status do usuário...');
+      
+      // Determinar novo status
+      const novoStatus = selectedUser.status === 'Ativo' ? 'inativo' : 'ativo';
+      const novoStatusInterface = selectedUser.status === 'Ativo' ? 'Bloqueado' : 'Ativo';
+      
+      // Atualizar status na tabela operadores
+      await alterarStatus(selectedUser.id, novoStatus);
+      
+      // Atualizar estado local
+      setUsuarios(usuarios.map(u => 
+        u.id === selectedUser.id 
+          ? { ...u, status: novoStatusInterface }
+          : u
+      ));
+      
+      setStatusMessage(`Usuário ${novoStatusInterface.toLowerCase()} com sucesso!`);
+      setTimeout(() => setStatusMessage(''), 3000);
+      
+    } catch (error) {
+      console.error('Erro ao alterar status do usuário:', error);
+      setStatusMessage('Erro ao alterar status do usuário: ' + error.message);
+      setTimeout(() => setStatusMessage(''), 5000);
+    }
+    
     handleCloseModal();
   };
 
@@ -176,18 +259,21 @@ const Usuarios = () => {
               <option value="Bloqueado">Bloqueado</option>
             </select>
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => handleOpenModal('create')}
-              className="btn-primary"
-            >
-              + Novo Usuário
-            </button>
-          )}
+          <button
+            onClick={() => handleOpenModal('create')}
+            className="btn-primary"
+          >
+            + Novo Usuário
+          </button>
         </div>
 
         {/* Lista de Usuários */}
-        <div className="users-table-container">
+        {loading ? (
+          <div className="loading-container">
+            <p>Carregando usuários...</p>
+          </div>
+        ) : (
+          <div className="users-table-container">
           <table className="users-table">
             <thead>
               <tr>
@@ -198,7 +284,7 @@ const Usuarios = () => {
                 <th>Status</th>
                 <th>Data Criação</th>
                 <th>Último Acesso</th>
-                {isAdmin && <th>Ações</th>}
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -219,41 +305,40 @@ const Usuarios = () => {
                   </td>
                   <td>{new Date(usuario.dataCriacao).toLocaleDateString('pt-BR')}</td>
                   <td>{usuario.ultimoAcesso === '-' ? '-' : new Date(usuario.ultimoAcesso).toLocaleDateString('pt-BR')}</td>
-                  {isAdmin && (
-                    <td className="actions-cell">
-                      <button
-                        onClick={() => handleOpenModal('edit', usuario)}
-                        className="btn-edit"
-                        title="Editar usuário"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleResendPassword(usuario)}
-                        className={`btn-resend ${usuario.ultimoAcesso === '-' ? 'enabled' : 'disabled'}`}
-                        disabled={usuario.ultimoAcesso !== '-'}
-                        title={usuario.ultimoAcesso === '-' ? 'Reenviar primeira senha' : 'Usuário já acessou o sistema'}
-                      >
-                        📧
-                      </button>
-                      <button
-                        onClick={() => handleOpenModal('block', usuario)}
-                        className={`btn-block ${usuario.status === 'Ativo' ? 'block' : 'unblock'}`}
-                        title={usuario.status === 'Ativo' ? 'Bloquear usuário' : 'Desbloquear usuário'}
-                      >
-                        {usuario.status === 'Ativo' ? '🔒' : '🔓'}
-                      </button>
-                    </td>
-                  )}
+                  <td className="actions-cell">
+                    <button
+                      onClick={() => handleOpenModal('edit', usuario)}
+                      className="btn-edit"
+                      title="Editar usuário"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleResendPassword(usuario)}
+                      className={`btn-resend ${usuario.ultimoAcesso === '-' ? 'enabled' : 'disabled'}`}
+                      disabled={usuario.ultimoAcesso !== '-'}
+                      title={usuario.ultimoAcesso === '-' ? 'Reenviar primeira senha' : 'Usuário já acessou o sistema'}
+                    >
+                      📧
+                    </button>
+                    <button
+                      onClick={() => handleOpenModal('block', usuario)}
+                      className={`btn-block ${usuario.status === 'Ativo' ? 'block' : 'unblock'}`}
+                      title={usuario.status === 'Ativo' ? 'Bloquear usuário' : 'Desbloquear usuário'}
+                    >
+                      {usuario.status === 'Ativo' ? '🔒' : '🔓'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
 
-        {filteredUsuarios.length === 0 && (
-          <div className="no-results">
-            <p>Nenhum usuário encontrado com os filtros aplicados.</p>
+          {filteredUsuarios.length === 0 && !loading && (
+            <div className="no-results">
+              <p>Nenhum usuário encontrado com os filtros aplicados.</p>
+            </div>
+          )}
           </div>
         )}
       </div>

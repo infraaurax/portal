@@ -19,7 +19,7 @@ const AtendimentosNaoFinalizados = () => {
       status: 'nao_atendido',
       statusTexto: 'Não Atendido',
       operadorResponsavel: 'João Silva',
-      operadorId: 'joao.silva@aurax.com',
+      operadorId: 'operador@exemplo.com',
       ultimaMensagem: 'Preciso de informações sobre meu seguro de vida',
       tempoSemResposta: '2h 15min',
       horarioUltimaMensagem: '13:45',
@@ -33,7 +33,7 @@ const AtendimentosNaoFinalizados = () => {
       status: 'pausado',
       statusTexto: 'Pausado',
       operadorResponsavel: 'Maria Santos',
-      operadorId: 'maria.santos@aurax.com',
+      operadorId: 'maria.santos@exemplo.com',
       ultimaMensagem: 'Aguardando documentos para análise',
       tempoSemResposta: '45min',
       horarioUltimaMensagem: '14:30',
@@ -47,7 +47,7 @@ const AtendimentosNaoFinalizados = () => {
       status: 'abandonado',
       statusTexto: 'Abandonado',
       operadorResponsavel: 'João Silva',
-      operadorId: 'joao.silva@aurax.com',
+      operadorId: 'operador@exemplo.com',
       ultimaMensagem: 'Cliente não respondeu após várias tentativas',
       tempoSemResposta: '1 dia 3h',
       horarioUltimaMensagem: '10:20',
@@ -61,7 +61,7 @@ const AtendimentosNaoFinalizados = () => {
       status: 'nao_atendido',
       statusTexto: 'Não Atendido',
       operadorResponsavel: 'Pedro Costa',
-      operadorId: 'pedro.costa@aurax.com',
+      operadorId: 'pedro.costa@exemplo.com',
       ultimaMensagem: 'Quero cancelar minha apólice',
       tempoSemResposta: '30min',
       horarioUltimaMensagem: '15:00',
@@ -71,10 +71,10 @@ const AtendimentosNaoFinalizados = () => {
 
   // Mock de operadores disponíveis
   const operadoresDisponiveis = [
-    { id: 'joao.silva@aurax.com', nome: 'João Silva' },
-    { id: 'maria.santos@aurax.com', nome: 'Maria Santos' },
-    { id: 'pedro.costa@aurax.com', nome: 'Pedro Costa' },
-    { id: 'ana.ferreira@aurax.com', nome: 'Ana Ferreira' }
+    { id: 'operador@exemplo.com', nome: 'Operador Exemplo' },
+    { id: 'maria.santos@exemplo.com', nome: 'Maria Santos' },
+    { id: 'pedro.costa@exemplo.com', nome: 'Pedro Costa' },
+    { id: 'ana.ferreira@exemplo.com', nome: 'Ana Ferreira' }
   ];
 
   // Função para retomar atendimento
