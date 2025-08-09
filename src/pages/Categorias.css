@@ -482,3 +482,32 @@
     width: 100%;
   }
 }
+
+/* Estilos para mensagens de estado */
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.alert-warning {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+}
+
+.loading-message, .empty-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+}
+
+.loading-message p, .empty-message p {
+  margin: 0;
+  font-style: italic;
+}

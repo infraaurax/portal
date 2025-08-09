@@ -1,10 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './PageStyles.css';
 import './Categorias.css';
+import { categoriasService } from '../services/categoriasService';
 
 const Categorias = () => {
-  // Mock data para categorias hierárquicas com sistema de índices
-  const [categorias] = useState([
+  // Estados para categorias
+  const [categorias, setCategorias] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
+  
+  // Mock data removido - agora será carregado do banco
+  const [categoriasBackup] = useState([
     {
       id: 1,
       nome: 'Suporte Técnico',
@@ -145,6 +151,28 @@ const Categorias = () => {
   const longPressTimer = useRef(null);
   const isLongPress = useRef(false);
 
+  // Função para carregar categorias do banco de dados
+  const carregarCategorias = async () => {
+    try {
+      setCarregando(true);
+      setErro(null);
+      const dados = await categoriasService.listarHierarquicas();
+      setCategorias(dados);
+    } catch (error) {
+      console.error('Erro ao carregar categorias:', error);
+      setErro('Erro ao carregar categorias. Usando dados de backup.');
+      // Em caso de erro, usar dados de backup
+      setCategorias(categoriasBackup);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // Carregar categorias ao montar o componente
+  useEffect(() => {
+    carregarCategorias();
+  }, []);
+
   const toggleExpanded = (categoryId) => {
     const newExpanded = new Set(expandedCategories);
     if (newExpanded.has(categoryId)) {
@@ -222,11 +250,52 @@ const Categorias = () => {
     setFormData({ nome: '', pai: null });
   };
 
-  const handleSubmit = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
-    // Aqui seria a integração com o backend
-    console.log('Ação:', modalType, 'Dados:', formData);
-    closeModal();
+    try {
+      await categoriasService.criar({
+        nome: formData.nome,
+        pai_id: formData.pai
+      });
+      await carregarCategorias(); // Recarregar categorias
+      closeModal();
+    } catch (error) {
+      console.error('Erro ao criar categoria:', error);
+      alert('Erro ao criar categoria');
+    }
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    try {
+      await categoriasService.atualizar(contextMenuCategory.id, {
+        nome: formData.nome
+      });
+      await carregarCategorias(); // Recarregar categorias
+      closeModal();
+    } catch (error) {
+      console.error('Erro ao editar categoria:', error);
+      alert('Erro ao editar categoria');
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await categoriasService.desativar(contextMenuCategory.id);
+      await carregarCategorias(); // Recarregar categorias
+      closeModal();
+    } catch (error) {
+      console.error('Erro ao deletar categoria:', error);
+      alert('Erro ao deletar categoria');
+    }
+  };
+
+  const handleSubmit = (e) => {
+    if (modalType === 'create') {
+      handleCreate(e);
+    } else if (modalType === 'edit') {
+      handleEdit(e);
+    }
   };
 
   const renderCategory = (category, level = 0) => {
@@ -293,9 +362,25 @@ const Categorias = () => {
       </div>
       
       <div className="page-content">
+        {erro && (
+          <div className="alert alert-warning">
+            {erro}
+          </div>
+        )}
+        
         <div className="categories-container">
           <div className="categories-tree">
-            {categorias.map(categoria => renderCategory(categoria))}
+            {carregando ? (
+              <div className="loading-message">
+                <p>Carregando categorias...</p>
+              </div>
+            ) : categorias.length === 0 ? (
+              <div className="empty-message">
+                <p>Nenhuma categoria encontrada.</p>
+              </div>
+            ) : (
+              categorias.map(categoria => renderCategory(categoria))
+            )}
           </div>
           
           {selectedCategory && (
@@ -419,10 +504,7 @@ const Categorias = () => {
                 <button 
                   type="button" 
                   className="btn-danger"
-                  onClick={() => {
-                    console.log('Excluindo categoria:', contextMenuCategory);
-                    closeModal();
-                  }}
+                  onClick={handleDelete}
                 >
                   Excluir
                 </button>

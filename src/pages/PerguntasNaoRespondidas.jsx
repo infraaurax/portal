@@ -1,79 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './PageStyles.css';
 import './PerguntasNaoRespondidas.css';
+import { perguntasNaoRespondidasService } from '../services/perguntasNaoRespondidasService';
+import { categoriasService } from '../services/categoriasService';
+import operadoresService from '../services/operadoresService';
+import { useAuth } from '../context/AuthContext';
 
 const PerguntasNaoRespondidas = () => {
-  // Mock data para perguntas não respondidas
-  const [perguntas, setPerguntas] = useState([
-    {
-      id: 1,
-      pergunta: "Qual é a diferença entre seguro de vida e seguro de acidentes pessoais?",
-      usuario: "5515981250815",
-      dataHora: "2024-01-15 14:30",
-      categoria: "Seguros",
-      status: "pendente",
-      tentativasIA: 3
-    },
-    {
-      id: 2,
-      pergunta: "Como funciona o cálculo de juros em precatórios alimentares?",
-      usuario: "5515981250815",
-      dataHora: "2024-01-15 10:15",
-      categoria: "Precatório",
-      status: "pendente",
-      tentativasIA: 2
-    },
-    {
-      id: 3,
-      pergunta: "Posso usar meu FGTS como garantia para crédito consignado?",
-      usuario: "5515981250815",
-      dataHora: "2024-01-14 16:45",
-      categoria: "Créditos",
-      status: "pendente",
-      tentativasIA: 1
-    },
-    {
-      id: 4,
-      pergunta: "Qual documentação necessária para cessão de precatório federal?",
-      usuario: "5515981250815",
-      dataHora: "2024-01-14 09:20",
-      categoria: "Precatório",
-      status: "pendente",
-      tentativasIA: 4
-    },
-    {
-      id: 5,
-      pergunta: "Como funciona o seguro prestamista em financiamentos imobiliários?",
-      usuario: "5515981250815",
-      dataHora: "2024-01-13 13:10",
-      categoria: "Seguros",
-      status: "pendente",
-      tentativasIA: 2
-    },
-    {
-      id: 6,
-      pergunta: "Qual a taxa de juros atual para crédito com garantia de imóvel?",
-      usuario: "5515981250815",
-      dataHora: "2024-01-13 08:45",
-      categoria: "Créditos",
-      status: "pendente",
-      tentativasIA: 3
-    },
-    {
-      id: 7,
-      pergunta: "É possível antecipar o recebimento de precatório estadual?",
-      usuario: "",
-      dataHora: "2024-01-12 15:20",
-      categoria: "Precatório",
-      status: "pendente",
-      tentativasIA: 1
-    }
-  ]);
+  const { user } = useAuth();
+  const [perguntas, setPerguntas] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [operadores, setOperadores] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [perguntaSelecionada, setPerguntaSelecionada] = useState(null);
   const [resposta, setResposta] = useState('');
   const [salvandoResposta, setSalvandoResposta] = useState(false);
+
+  // Carregar perguntas do Supabase
+  useEffect(() => {
+    carregarPerguntas();
+  }, []);
+
+  const carregarPerguntas = async () => {
+    try {
+      setCarregando(true);
+      setErro(null);
+      const [dadosPerguntas, dadosCategorias, dadosOperadores] = await Promise.all([
+        perguntasNaoRespondidasService.listar(),
+        categoriasService.listar(),
+        operadoresService.buscarTodos()
+      ]);
+      setPerguntas(dadosPerguntas);
+      setCategorias(dadosCategorias);
+      setOperadores(dadosOperadores);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      setErro('Erro ao carregar dados. Tente novamente.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  const obterNomeCategoria = (categoriaId) => {
+    if (!categoriaId) return 'Sem categoria';
+    const categoria = categorias.find(cat => cat.id === categoriaId);
+    return categoria ? categoria.nome : 'Categoria não encontrada';
+  };
+
+  const obterNomeOperador = (operadorId) => {
+    if (!operadorId) return 'Usuário não identificado';
+    const operador = operadores.find(op => op.id === operadorId);
+    return operador ? operador.nome : 'Operador não encontrado';
+  };
 
   const abrirModalResposta = (pergunta) => {
     setPerguntaSelecionada(pergunta);
@@ -98,27 +79,43 @@ const PerguntasNaoRespondidas = () => {
     setSalvandoResposta(true);
     
     try {
-      // Simular delay de salvamento
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Salvar resposta no Supabase
+      await perguntasNaoRespondidasService.marcarComoRespondida(
+        perguntaSelecionada.id,
+        resposta,
+        user?.id
+      );
       
-      // Atualizar a pergunta como respondida
-      setPerguntas(prev => prev.map(p => 
-        p.id === perguntaSelecionada.id 
-          ? { ...p, status: 'respondida', resposta: resposta.trim(), dataResposta: new Date().toLocaleString('pt-BR') }
-          : p
-      ));
+      // Recarregar a lista de perguntas
+      await carregarPerguntas();
       
-      alert(`Resposta salva com sucesso!\n\nPergunta: ${perguntaSelecionada.pergunta}\n\nResposta: ${resposta.trim()}\n\nNota: Esta é uma implementação mock. Em produção, a resposta seria salva no banco de dados.`);
-      fecharModal();
+      // Fechar modal e limpar formulário
+      setModalOpen(false);
+      setPerguntaSelecionada(null);
+      setResposta('');
+      
+      alert('Resposta salva com sucesso!');
     } catch (error) {
+      console.error('Erro ao salvar resposta:', error);
       alert('Erro ao salvar resposta. Tente novamente.');
     } finally {
       setSalvandoResposta(false);
     }
   };
 
-  const perguntasPendentes = perguntas.filter(p => p.status === 'pendente');
+  const perguntasPendentes = perguntas.filter(p => p.status === 'pendente' || !p.status);
   const perguntasRespondidas = perguntas.filter(p => p.status === 'respondida');
+
+  // Função para formatar data
+  const formatarData = (dataString) => {
+    if (!dataString) return 'Data não disponível';
+    try {
+      const data = new Date(dataString);
+      return data.toLocaleString('pt-BR');
+    } catch {
+      return dataString;
+    }
+  };
 
   return (
     <div className="page-container">
@@ -128,71 +125,90 @@ const PerguntasNaoRespondidas = () => {
       </div>
       
       <div className="page-content">
-        
+        {carregando && (
+          <div className="loading-state">
+            <div className="loading-spinner"></div>
+            <p>Carregando perguntas...</p>
+          </div>
+        )}
 
-        <div className="questions-section">
-          <h2>Perguntas Pendentes</h2>
-          {perguntasPendentes.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">✅</div>
-              <h3>Todas as perguntas foram respondidas!</h3>
-              <p>Não há perguntas pendentes no momento.</p>
-            </div>
-          ) : (
-            <div className="questions-list">
-              {perguntasPendentes.map(pergunta => (
-                <div key={pergunta.id} className="question-card">
-                  <div className="question-header">
-                    <div className="question-meta">
-                      <span className="question-user">👤 {pergunta.usuario}</span>
-                      <span className="question-date">📅 {pergunta.dataHora}</span>
-                      <span className="question-category">🏷️ {pergunta.categoria}</span>
-                    </div>
-                    
-                  </div>
-                  <div className="question-content">
-                    <h3>{pergunta.pergunta}</h3>
-                  </div>
-                  <div className="question-actions">
-                    <button 
-                      className="btn-primary"
-                      onClick={() => abrirModalResposta(pergunta)}
-                    >
-                      📝 Responder
-                    </button>
-                  </div>
+        {erro && (
+          <div className="error-state">
+            <div className="error-icon">⚠️</div>
+            <h3>Erro ao carregar perguntas</h3>
+            <p>{erro}</p>
+            <button className="btn-primary" onClick={carregarPerguntas}>
+              🔄 Tentar Novamente
+            </button>
+          </div>
+        )}
+
+        {!carregando && !erro && (
+          <>
+            <div className="questions-section">
+              <h2>Perguntas Pendentes</h2>
+              {perguntasPendentes.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">✅</div>
+                  <h3>Todas as perguntas foram respondidas!</h3>
+                  <p>Não há perguntas pendentes no momento.</p>
                 </div>
-              ))}
-            </div>
-          )}
+              ) : (
+                <div className="questions-list">
+                  {perguntasPendentes.map(pergunta => (
+                    <div key={pergunta.id} className="question-card">
+                      <div className="question-header">
+                        <div className="question-meta">
+                          <span className="question-user">👤 {obterNomeOperador(pergunta.operador_id)}</span>
+                          <span className="question-date">📅 {formatarData(pergunta.created_at || pergunta.data_hora)}</span>
+                          <span className="question-category">🏷️ {obterNomeCategoria(pergunta.categoria_id)}</span>
+                        </div>
+                      </div>
+                      <div className="question-content">
+                        <h3>{pergunta.pergunta || pergunta.texto}</h3>
+                      </div>
+                      <div className="question-actions">
+                        <button 
+                          className="btn-primary"
+                          onClick={() => abrirModalResposta(pergunta)}
+                        >
+                          📝 Responder
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
         </div>
 
-        {perguntasRespondidas.length > 0 && (
-          <div className="questions-section">
-            <h2>Perguntas Respondidas Recentemente</h2>
-            <div className="questions-list">
-              {perguntasRespondidas.slice(0, 3).map(pergunta => (
-                <div key={pergunta.id} className="question-card answered">
-                  <div className="question-header">
-                    <div className="question-meta">
-                      <span className="question-user">👤 {pergunta.usuario}</span>
-                      <span className="question-date">📅 {pergunta.dataHora}</span>
-                      <span className="question-category">🏷️ {pergunta.categoria}</span>
+            {perguntasRespondidas.length > 0 && (
+              <div className="questions-section">
+                <h2>Perguntas Respondidas Recentemente</h2>
+                <div className="questions-list">
+                  {perguntasRespondidas.slice(0, 3).map(pergunta => (
+                    <div key={pergunta.id} className="question-card answered">
+                      <div className="question-header">
+                        <div className="question-meta">
+                          <span className="question-user">👤 {obterNomeOperador(pergunta.operador_id)}</span>
+                          <span className="question-date">📅 {formatarData(pergunta.created_at || pergunta.data_hora)}</span>
+                          <span className="question-category">🏷️ {obterNomeCategoria(pergunta.categoria_id)}</span>
+                        </div>
+                        <div className="question-status">
+                          <span className="status-badge answered">✅ Respondida em {formatarData(pergunta.data_resposta)}</span>
+                        </div>
+                      </div>
+                      <div className="question-content">
+                        <h3>{pergunta.pergunta || pergunta.texto}</h3>
+                        <div className="question-answer">
+                          <strong>Resposta:</strong> {pergunta.resposta}
+                        </div>
+                      </div>
                     </div>
-                    <div className="question-status">
-                      <span className="status-badge answered">✅ Respondida em {pergunta.dataResposta}</span>
-                    </div>
-                  </div>
-                  <div className="question-content">
-                    <h3>{pergunta.pergunta}</h3>
-                    <div className="question-answer">
-                      <strong>Resposta:</strong> {pergunta.resposta}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -207,20 +223,22 @@ const PerguntasNaoRespondidas = () => {
             <div className="modal-body">
               <div className="question-details">
                 <div className="detail-row">
-                  <strong>Usuário:</strong> {perguntaSelecionada.usuario}
+                  <strong>Usuário:</strong> {obterNomeOperador(perguntaSelecionada.operador_id)}
                 </div>
                 <div className="detail-row">
-                  <strong>Data/Hora:</strong> {perguntaSelecionada.dataHora}
+                  <strong>Telefone do Cliente:</strong> {perguntaSelecionada.usuario_telefone || 'Telefone não informado'}
                 </div>
                 <div className="detail-row">
-                  <strong>Categoria:</strong> {perguntaSelecionada.categoria}
+                  <strong>Data/Hora:</strong> {formatarData(perguntaSelecionada.created_at || perguntaSelecionada.data_hora)}
                 </div>
-               
+                <div className="detail-row">
+                  <strong>Categoria:</strong> {obterNomeCategoria(perguntaSelecionada.categoria_id)}
+                </div>
               </div>
               
               <div className="question-text">
                 <h4>Pergunta:</h4>
-                <p>{perguntaSelecionada.pergunta}</p>
+                <p>{perguntaSelecionada.pergunta || perguntaSelecionada.texto}</p>
               </div>
 
               <form onSubmit={salvarResposta}>
