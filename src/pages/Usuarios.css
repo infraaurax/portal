@@ -91,7 +91,6 @@
 
 .btn-primary:hover {
   background: #1a1548;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(34, 28, 98, 0.3);
 }
 
@@ -126,7 +125,6 @@
 
 .btn-danger:hover {
   background: #b91c1c;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 

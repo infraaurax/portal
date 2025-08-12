@@ -26,6 +26,14 @@ const Login = () => {
   const [reauthToken, setReauthToken] = useState('');
   const [modalError, setModalError] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
+  
+  // Estados para acesso sem senha
+  const [showPasswordlessModal, setShowPasswordlessModal] = useState(false);
+  const [passwordlessEmail, setPasswordlessEmail] = useState('');
+  const [passwordlessStep, setPasswordlessStep] = useState('email'); // 'email', 'success'
+  const [passwordlessError, setPasswordlessError] = useState('');
+  const [passwordlessLoading, setPasswordlessLoading] = useState(false);
+  
   const { login, isAuthenticated } = useAuth();
 
   if (isAuthenticated) {
@@ -65,6 +73,67 @@ const Login = () => {
     setNewPassword('');
     setConfirmPassword('');
     setModalError('');
+  };
+
+  const handlePasswordlessAccess = () => {
+    setShowPasswordlessModal(true);
+    setPasswordlessStep('email');
+    setPasswordlessEmail('');
+    setPasswordlessError('');
+  };
+
+  const handlePasswordlessEmailSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordlessError('');
+    setPasswordlessLoading(true);
+    
+    try {
+      // Verificar se o email existe na tabela operadores
+      const operador = await buscarPorEmail(passwordlessEmail);
+      
+      if (!operador) {
+        setPasswordlessError('Email não encontrado no sistema.');
+        return;
+      }
+      
+      if (operador.status === 'inativo') {
+        setPasswordlessError('Usuário inativo. Entre em contato com o administrador.');
+        return;
+      }
+      
+      // Enviar código de verificação via email
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: passwordlessEmail,
+        options: {
+          shouldCreateUser: false
+        }
+      });
+      
+      if (error) {
+        console.error('Erro ao enviar email:', error);
+        setPasswordlessError('Erro ao enviar email de reset. Tente novamente.');
+        return;
+      }
+      
+      // Mostrar mensagem de sucesso
+      setPasswordlessError('');
+      setPasswordlessStep('success');
+      
+    } catch (error) {
+      console.error('Erro ao verificar email:', error);
+      setPasswordlessError('Erro ao verificar email. Tente novamente.');
+    } finally {
+      setPasswordlessLoading(false);
+    }
+  };
+
+
+
+  const closePasswordlessModal = () => {
+    setShowPasswordlessModal(false);
+    setPasswordlessStep('email');
+    setPasswordlessEmail('');
+    setPasswordlessError('');
   };
 
 
@@ -287,6 +356,15 @@ const Login = () => {
             <a href="#" className="forgot-password-link" onClick={(e) => { e.preventDefault(); handleForgotPassword(); }}>
               Esqueceu sua senha?
             </a>
+            
+            <button 
+              type="button" 
+              className="passwordless-access-button" 
+              onClick={handlePasswordlessAccess}
+              disabled={isLoading}
+            >
+              Acesso sem senha
+            </button>
           </form>
           
          
@@ -454,6 +532,68 @@ const Login = () => {
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Modal Acesso sem Senha */}
+      {showPasswordlessModal && (
+        <div className="modal-overlay" onClick={closePasswordlessModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Acesso sem Senha</h2>
+              <button className="modal-close" onClick={closePasswordlessModal}>&times;</button>
+            </div>
+            
+            {passwordlessStep === 'email' && (
+              <form onSubmit={handlePasswordlessEmailSubmit} className="modal-form">
+                <div className="form-group">
+                  <label htmlFor="passwordless-email">Email</label>
+                  <input
+                    type="email"
+                    id="passwordless-email"
+                    value={passwordlessEmail}
+                    onChange={(e) => setPasswordlessEmail(e.target.value)}
+                    required
+                    placeholder="Digite seu email"
+                    disabled={passwordlessLoading}
+                  />
+                </div>
+                
+                <div className="info-message">
+                  <p>Digite seu email para receber um link de reset de senha.</p>
+                </div>
+                
+                {passwordlessError && <div className="error-message">{passwordlessError}</div>}
+                
+                <div className="modal-buttons">
+                  <button type="button" className="btn-secondary" onClick={closePasswordlessModal} disabled={passwordlessLoading}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn-primary" disabled={passwordlessLoading}>
+                    {passwordlessLoading ? 'Enviando...' : 'Enviar Link'}
+                  </button>
+                </div>
+              </form>
+            )}
+            
+            {passwordlessStep === 'success' && (
+              <div className="modal-form">
+                <div className="success-message">
+                  <div className="success-icon">✓</div>
+                  <h3>Email enviado com sucesso!</h3>
+                  <p>Um link de reset de senha foi enviado para:</p>
+                  <p><strong>{passwordlessEmail}</strong></p>
+                  <p>Verifique sua caixa de entrada e clique no link para redefinir sua senha e fazer login.</p>
+                </div>
+                
+                <div className="modal-buttons">
+                  <button type="button" className="btn-primary" onClick={closePasswordlessModal}>
+                    Fechar
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

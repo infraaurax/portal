@@ -30,6 +30,8 @@
 }
 
 .version-info {
+  display: flex;
+  justify-content: center;
   margin-top: 8px;
   margin-left: 2px;
 }

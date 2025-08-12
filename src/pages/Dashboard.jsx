@@ -5,7 +5,7 @@ import './Dashboard.css';
 
 const Dashboard = () => {
   const { user, atendimentoHabilitado, setAtendimentoHabilitado, atendimentoPausado, setAtendimentoPausado } = useAuth();
-  
+
   // Estados locais para modais e controles
   const [modalHabilitacao, setModalHabilitacao] = useState(false);
   const [senhaGerada, setSenhaGerada] = useState('');
@@ -22,7 +22,18 @@ const Dashboard = () => {
   const [tempoRestanteAceitar, setTempoRestanteAceitar] = useState(45);
   const [novoAtendimentoData, setNovoAtendimentoData] = useState(null);
   const [intervalAceitar, setIntervalAceitar] = useState(null);
-  
+  const [modalEditarNome, setModalEditarNome] = useState(false);
+  const [novoNomeCliente, setNovoNomeCliente] = useState('');
+  const [novaObservacao, setNovaObservacao] = useState('');
+  const [observacoes, setObservacoes] = useState([
+    {
+      id: 1,
+      texto: 'Cliente relatou problema com pedido #12345. Verificado status do pedido e informado prazo de entrega. Cliente satisfeito com o atendimento.',
+      data: new Date('2024-01-15T14:25:00'),
+      operador: 'Carlos Santos'
+    }
+  ]);
+
   // Mock de novos atendimentos para aceitar
   const novosAtendimentosMock = [
     {
@@ -224,12 +235,33 @@ const Dashboard = () => {
   const selecionarAtendimento = (atendimento) => {
     setAtendimentoSelecionado(atendimento);
   };
-  
+
+  // Função para salvar novo nome do cliente
+  const salvarNomeCliente = () => {
+    if (novoNomeCliente.trim() && atendimentoSelecionado) {
+      console.log('Alterando nome do cliente', atendimentoSelecionado.id, 'para', novoNomeCliente);
+      // Aqui seria a lógica para salvar o novo nome na API
+      // Por enquanto, vamos atualizar localmente
+      setAtendimentoSelecionado({
+        ...atendimentoSelecionado,
+        nome: novoNomeCliente
+      });
+      setModalEditarNome(false);
+      setNovoNomeCliente('');
+    }
+  };
+
+  // Função para cancelar edição de nome
+  const cancelarEdicaoNome = () => {
+    setModalEditarNome(false);
+    setNovoNomeCliente('');
+  };
+
   // Função para filtrar atendimentos
   const atendimentosFiltrados = atendimentos.filter(atendimento => {
     // Filtro por status
     const passaFiltroStatus = filtroStatus === 'todos' || atendimento.status === filtroStatus;
-    
+
     // Filtro por busca de texto
     const passaFiltroBusca = !termoBusca || (() => {
       const termo = termoBusca.toLowerCase();
@@ -241,7 +273,7 @@ const Dashboard = () => {
         atendimento.statusTexto.toLowerCase().includes(termo)
       );
     })();
-    
+
     return passaFiltroStatus && passaFiltroBusca;
   });
 
@@ -266,16 +298,16 @@ const Dashboard = () => {
         setTempoRestante(prev => {
           if (prev <= 1) {
             // Tempo esgotado - desconectar usuário
-             setAtendimentoHabilitado(false);
-             setAtendimentoPausado(false);
-             setModalConfirmacao(false);
-             alert('Tempo esgotado! Você foi desconectado e precisará se habilitar novamente.');
-             return 40 * 60; // Reset para 40 minutos
+            setAtendimentoHabilitado(false);
+            setAtendimentoPausado(false);
+            setModalConfirmacao(false);
+            alert('Tempo esgotado! Você foi desconectado e precisará se habilitar novamente.');
+            return 40 * 60; // Reset para 40 minutos
           }
           return prev - 1;
         });
       }, 1000);
-      
+
       setIntervaloPausa(intervalo);
       return () => clearInterval(intervalo);
     }
@@ -286,20 +318,20 @@ const Dashboard = () => {
     const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const numeros = '0123456789';
     const todosCaracteres = letras + numeros;
-    
+
     let senha = '';
-    
+
     // Garantir pelo menos 1 letra
     senha += letras.charAt(Math.floor(Math.random() * letras.length));
-    
+
     // Garantir pelo menos 1 número
     senha += numeros.charAt(Math.floor(Math.random() * numeros.length));
-    
+
     // Completar com 4 caracteres aleatórios
     for (let i = 2; i < 6; i++) {
       senha += todosCaracteres.charAt(Math.floor(Math.random() * todosCaracteres.length));
     }
-    
+
     // Embaralhar a senha para não ter padrão fixo
     return senha.split('').sort(() => Math.random() - 0.5).join('');
   };
@@ -326,7 +358,7 @@ const Dashboard = () => {
       const novaSenha = [...senhaDigitada];
       novaSenha[index] = valor.toUpperCase();
       setSenhaDigitada(novaSenha);
-      
+
       // Focar no próximo campo se não for o último
       if (valor && index < 5) {
         const proximoCampo = document.getElementById(`senha-${index + 1}`);
@@ -338,18 +370,18 @@ const Dashboard = () => {
   // Função para verificar senha e habilitar atendimento
   const verificarSenha = async () => {
     const senhaCompleta = senhaDigitada.join('');
-    
+
     if (senhaCompleta.length !== 6) {
       alert('Por favor, digite todos os 6 caracteres da senha.');
       return;
     }
 
     setVerificandoSenha(true);
-    
+
     try {
       // Simular delay de verificação
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       if (senhaCompleta === senhaGerada) {
         setAtendimentoHabilitado(true);
         alert('Atendimento habilitado com sucesso!');
@@ -408,7 +440,7 @@ const Dashboard = () => {
     setNovoAtendimentoData(atendimentoAleatorio);
     setModalNovoAtendimento(true);
     setTempoRestanteAceitar(45);
-    
+
     // Inicia o timer
     const interval = setInterval(() => {
       setTempoRestanteAceitar(prev => {
@@ -423,7 +455,7 @@ const Dashboard = () => {
         return prev - 1;
       });
     }, 1000);
-    
+
     setIntervalAceitar(interval);
   };
 
@@ -432,18 +464,51 @@ const Dashboard = () => {
     if (novoAtendimentoData) {
       // Adiciona o novo atendimento à lista
       setAtendimentos(prev => [novoAtendimentoData, ...prev]);
-      
+
       // Fecha a modal
       setModalNovoAtendimento(false);
       setNovoAtendimentoData(null);
-      
+
       // Para o timer
       if (intervalAceitar) {
         clearInterval(intervalAceitar);
         setIntervalAceitar(null);
       }
-      
+
       setTempoRestanteAceitar(45);
+    }
+  };
+
+  // Função para adicionar nova observação
+  const adicionarObservacao = () => {
+    if (novaObservacao.trim()) {
+      const novaObs = {
+        id: observacoes.length + 1,
+        texto: novaObservacao.trim(),
+        data: new Date(),
+        operador: user?.nome || 'Operador Atual'
+      };
+      setObservacoes(prev => [novaObs, ...prev]);
+      setNovaObservacao('');
+    }
+  };
+
+  // Função para formatar data e hora
+  const formatarDataHora = (data) => {
+    return data.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Função para lidar com Enter no input de observação
+  const handleKeyPressObservacao = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      adicionarObservacao();
     }
   };
 
@@ -451,13 +516,13 @@ const Dashboard = () => {
   const rejeitarAtendimento = () => {
     setModalNovoAtendimento(false);
     setNovoAtendimentoData(null);
-    
+
     // Para o timer
     if (intervalAceitar) {
       clearInterval(intervalAceitar);
       setIntervalAceitar(null);
     }
-    
+
     setTempoRestanteAceitar(45);
   };
 
@@ -482,43 +547,43 @@ const Dashboard = () => {
             <div className="status-indicator">
             </div>
             <div className="action-buttons">
-              <button 
+              <button
                 className="btn-primary"
                 onClick={abrirModalHabilitacao}
                 disabled={atendimentoHabilitado}
               >
                 Habilitar Atendimento
               </button>
-              
-              <button 
+
+              <button
                 className="btn-aceitar-atendimento"
                 onClick={abrirModalNovoAtendimento}
                 disabled={!atendimentoHabilitado}
               >
                 Aceitar Atendimento
               </button>
-              
+
               {!atendimentoPausado ? (
-                 <button 
-                   className="btn-warning"
-                   onClick={pausarAtendimentos}
-                   disabled={!atendimentoHabilitado}
-                 >
-                   Pausar Atendimentos
-                 </button>
-               ) : (
-                 <button 
-                   className="btn-timer"
-                   onClick={abrirModalConfirmacao}
-                 >
+                <button
+                  className="btn-warning"
+                  onClick={pausarAtendimentos}
+                  disabled={!atendimentoHabilitado}
+                >
+                  Pausar Atendimentos
+                </button>
+              ) : (
+                <button
+                  className="btn-timer"
+                  onClick={abrirModalConfirmacao}
+                >
                   Atendimento Pausado {formatarTempo(tempoRestante)}
-                 </button>
-               )}
+                </button>
+              )}
             </div>
           </div>
         </div>
       </div>
-      
+
       <div className="page-content-dashboard">
         <div className="whatsapp-layout">
           {/* Coluna Esquerda - Lista de Atendimentos */}
@@ -526,8 +591,8 @@ const Dashboard = () => {
             <div className="sidebar-header">
               <h3>Atendimentos</h3>
               <div className="search-container">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Buscar por ID, número ou status..."
                   className="search-input"
                   value={termoBusca}
@@ -536,39 +601,39 @@ const Dashboard = () => {
                 />
               </div>
             </div>
-            
+
             {/* Filtros de Status */}
             <div className="status-filters">
               <div className="filter-tabs">
-                <button 
+                <button
                   className={`filter-tab ${filtroStatus === 'todos' ? 'active' : ''}`}
                   onClick={() => setFiltroStatus('todos')}
                   disabled={!atendimentoHabilitado}
                 >
                   Todos
                 </button>
-                <button 
+                <button
                   className={`filter-tab ${filtroStatus === 'novo' ? 'active' : ''}`}
                   onClick={() => setFiltroStatus('novo')}
                   disabled={!atendimentoHabilitado}
                 >
                   Novos
                 </button>
-                <button 
+                <button
                   className={`filter-tab ${filtroStatus === 'em-andamento' ? 'active' : ''}`}
                   onClick={() => setFiltroStatus('em-andamento')}
                   disabled={!atendimentoHabilitado}
                 >
                   Em Andamento
                 </button>
-                <button 
+                <button
                   className={`filter-tab ${filtroStatus === 'aguardando' ? 'active' : ''}`}
                   onClick={() => setFiltroStatus('aguardando')}
                   disabled={!atendimentoHabilitado}
                 >
                   Aguardando
                 </button>
-                <button 
+                <button
                   className={`filter-tab ${filtroStatus === 'finalizado' ? 'active' : ''}`}
                   onClick={() => setFiltroStatus('finalizado')}
                   disabled={!atendimentoHabilitado}
@@ -577,7 +642,7 @@ const Dashboard = () => {
                 </button>
               </div>
             </div>
-            
+
             {!atendimentoHabilitado && (
               <div className="atendimentos-disabled-overlay">
                 <div className="disabled-message">
@@ -590,12 +655,12 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
-            
+
             <div className={`atendimentos-list ${!atendimentoHabilitado ? 'disabled' : ''}`}>
               {atendimentosFiltrados.length > 0 ? (
                 atendimentosFiltrados.map((atendimento) => (
-                  <div 
-                    key={atendimento.id} 
+                  <div
+                    key={atendimento.id}
                     className={`atendimento-item ${atendimentoSelecionado?.id === atendimento.id ? 'active' : ''}`}
                     onClick={() => selecionarAtendimento(atendimento)}
                     style={{ cursor: 'pointer' }}
@@ -632,7 +697,7 @@ const Dashboard = () => {
               )}
             </div>
           </div>
-          
+
           {/* Coluna Direita - Chat */}
           <div className={`chat-container ${!atendimentoHabilitado ? 'disabled' : ''}`}>
             {!atendimentoHabilitado && (
@@ -654,13 +719,23 @@ const Dashboard = () => {
                 </div>
                 <div className="chat-details">
                   <div className="chat-nome-id">
-                    <h4>{atendimentoSelecionado?.nome || 'João da Silva'}</h4>
+                    <div className="nome-container-dashboard">
+                      <h4>{atendimentoSelecionado?.nome || 'João da Silva'}</h4>
+                      <button 
+                        className="btn-edit-nome-dashboard"
+                        onClick={() => {
+                          setNovoNomeCliente(atendimentoSelecionado?.nome || 'João da Silva');
+                          setModalEditarNome(true);
+                        }}
+                        title="Editar nome do cliente"
+                      >
+                        ✏️
+                      </button>
+                    </div>
                     <span className="chat-atendimento-id">#{atendimentoSelecionado?.id || 'ATD-2024-001'}</span>
                   </div>
                   <span className="phone-number">{atendimentoSelecionado?.telefone || '+55 11 99999-9999'}</span>
-                  <span className={`status-indicator ${atendimentoSelecionado?.online ? 'online' : 'offline'}`}>
-                    {atendimentoSelecionado?.online ? 'Online' : 'Offline'}
-                  </span>
+                 
                 </div>
               </div>
               <div className="chat-actions">
@@ -675,14 +750,14 @@ const Dashboard = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="chat-messages">
               {/* Mensagens do chat */}
               {atendimentoSelecionado && conversas[atendimentoSelecionado.id] ? (
                 conversas[atendimentoSelecionado.id].map((mensagem, index) => {
                   // Função para obter o label da role
                   const getRoleLabel = (tipo) => {
-                    switch(tipo) {
+                    switch (tipo) {
                       case 'ia': return 'Agente IA';
                       case 'operador': return 'Operador';
                       case 'cliente': return 'Cliente';
@@ -716,7 +791,7 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-            
+
             <div className="chat-input-container">
               <div className="input-actions">
                 <button className="btn-attachment" title="Enviar arquivo">
@@ -726,7 +801,7 @@ const Dashboard = () => {
                 </button>
               </div>
               <div className="message-input-wrapper">
-                <textarea 
+                <textarea
                   placeholder="Digite sua mensagem..."
                   className="message-input"
                   rows="1"
@@ -762,7 +837,7 @@ const Dashboard = () => {
                   </div>
                   <p className="senha-instrucao">Digite a senha acima nos campos abaixo:</p>
                 </div>
-                
+
                 <div className="senha-input">
                   <div className="passcode-container">
                     {senhaDigitada.map((char, index) => (
@@ -791,18 +866,18 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="modal-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
+                <button
+                  type="button"
+                  className="btn-secondary"
                   onClick={fecharModalHabilitacao}
                   disabled={verificandoSenha}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-primary"
                   onClick={verificarSenha}
                   disabled={verificandoSenha || senhaDigitada.join('').length !== 6}
@@ -834,123 +909,145 @@ const Dashboard = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="modal-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
+                <button
+                  type="button"
+                  className="btn-secondary"
                   onClick={fecharModalConfirmacao}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-primary"
                   onClick={retomarAtendimentos}
                 >
-                Retomar Atendimentos
+                  Retomar Atendimentos
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-      
+
       {/* Modal de Informações do Atendimento */}
       {modalInformacoes && (
         <div className="modal-overlay">
           <div className="modal-content-info modal-informacoes">
             <div className="modal-header">
               <h3>Informações do Atendimento</h3>
-              <button 
-                className="modal-close" 
+              <button
+                className="modal-close"
                 onClick={() => setModalInformacoes(false)}
               >
                 ×
               </button>
             </div>
             <div className="modal-body">
-              <div className="info-section">
-                <h4>Dados do Cliente</h4>
-                <div className="info-grid">
-                  <div className="info-item">
-                    <label>Nome:</label>
-                    <span>João da Silva</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Telefone:</label>
-                    <span>+55 11 99999-9999</span>
-                  </div>
-                  <div className="info-item">
-                    <label>E-mail:</label>
-                    <span>joao.silva@email.com</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Status:</label>
-                    <span className="status-badge status-em-andamento">Em andamento</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="info-section">
-                <h4>Detalhes do Atendimento</h4>
-                <div className="info-grid">
-                  <div className="info-item">
-                    <label>ID do Atendimento:</label>
-                    <span>#ATD-2024-001</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Data de Início:</label>
-                    <span>15/01/2024 às 14:25</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Operador Responsável:</label>
-                    <span>Carlos Santos</span>
-                  </div>
-                  <div className="info-item">
-                    <label>Categoria:</label>
-                    <span>Seguro</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="info-section">
-                <h4>Histórico de Interações</h4>
-                <div className="interaction-timeline">
-                  <div className="timeline-item">
-                    <div className="timeline-time">14:25</div>
-                    <div className="timeline-content">
-                      <strong>Cliente iniciou conversa</strong>
-                      <p>Primeiro contato via WhatsApp</p>
+              <div className="info-container-split">
+                <div className="info-section">
+                  <h4>Dados do Cliente</h4>
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <label>Nome:</label>
+                      <span>João da Silva</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Telefone:</label>
+                      <span>+55 11 99999-9999</span>
+                    </div>
+                    <div className="info-item">
+                      <label>E-mail:</label>
+                      <span>joao.silva@email.com</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Status:</label>
+                      <span className="status-badge status-em-andamento">Em andamento</span>
                     </div>
                   </div>
-                  <div className="timeline-item">
-                    <div className="timeline-time">14:26</div>
-                    <div className="timeline-content">
-                      <strong>IA respondeu</strong>
-                      <p>Assistente virtual coletou informações iniciais</p>
+                </div>
+
+                <div className="info-section">
+                  <h4>Detalhes do Atendimento</h4>
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <label>ID do Atendimento:</label>
+                      <span>#ATD-2024-001</span>
                     </div>
-                  </div>
-                  <div className="timeline-item">
-                    <div className="timeline-time">14:30</div>
-                    <div className="timeline-content">
-                      <strong>Transferido para operador</strong>
-                      <p>Atendimento direcionado para Carlos Santos</p>
+                    <div className="info-item">
+                      <label>Data de Início:</label>
+                      <span>15/01/2024 às 14:25</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Operador Responsável:</label>
+                      <span>Carlos Santos</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Categoria:</label>
+                      <span>Seguro</span>
                     </div>
                   </div>
                 </div>
               </div>
-              
+
+              <div className="info-section">
+                <h4>Descrição do Atendimento</h4>
+                <div className="descricao-atendimento">
+                  <p>Cliente relatou problema com pedido #12345. Verificado status do pedido e informado prazo de entrega. Cliente satisfeito com o atendimento.</p>
+                </div>
+              </div>
+
               <div className="info-section">
                 <h4>Observações</h4>
-                <div className="observacoes-content">
-                  <p>Cliente relatou problema com pedido #12345. Verificado status do pedido e informado prazo de entrega. Cliente satisfeito com o atendimento.</p>
+                <div className="observacoes-input-container">
+                  <div className="input-group">
+                    <textarea
+                      value={novaObservacao}
+                      onChange={(e) => setNovaObservacao(e.target.value)}
+                      onKeyPress={handleKeyPressObservacao}
+                      placeholder="Digite uma nova observação..."
+                      className="observacao-input"
+                      spellCheck={true}
+                      autoCorrect="on"
+                      autoComplete="on"
+                      lang="pt-BR"
+                      rows="3"
+                    />
+                    <button
+                      onClick={adicionarObservacao}
+                      className="btn-adicionar-observacao"
+                      disabled={!novaObservacao.trim()}
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="observacoes-timeline">
+                  {observacoes.length > 0 ? (
+                    observacoes.map((obs) => (
+                      <div key={obs.id} className="timeline-item">
+                        <div className="timeline-content">
+                          <div className="timeline-header">
+                            <span className="timeline-operador">{obs.operador}</span>
+                            <span className="timeline-data">{formatarDataHora(obs.data)}</span>
+                          </div>
+                          <div className="timeline-texto">{obs.texto}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="no-observacoes">
+                      <p>Nenhuma observação registrada ainda.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
             <div className="modal-actions">
-              <button 
-                className="btn-secondary" 
+              <button
+                className="btn-secondary"
                 onClick={() => setModalInformacoes(false)}
               >
                 Fechar
@@ -959,7 +1056,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-      
+
       {/* Modal de Novo Atendimento */}
       {modalNovoAtendimento && novoAtendimentoData && (
         <div className="modal-overlay">
@@ -969,14 +1066,14 @@ const Dashboard = () => {
               <div className="timer-aceitar">
                 <span className="timer-text">Tempo restante: {tempoRestanteAceitar}s</span>
                 <div className="timer-bar">
-                  <div 
-                    className="timer-progress" 
+                  <div
+                    className="timer-progress"
                     style={{ width: `${(tempoRestanteAceitar / 45) * 100}%` }}
                   ></div>
                 </div>
               </div>
             </div>
-            
+
             <div className="modal-body">
               <div className="cliente-info">
                 <div className="cliente-avatar">{novoAtendimentoData.avatar}</div>
@@ -988,26 +1085,78 @@ const Dashboard = () => {
                   </span>
                 </div>
               </div>
-              
+
               <div className="ultima-mensagem">
                 <strong>Última mensagem:</strong>
                 <p>"{novoAtendimentoData.ultimaMensagem}"</p>
                 <span className="horario">{novoAtendimentoData.horario}</span>
               </div>
             </div>
-            
+
             <div className="modal-actions">
-              <button 
+              <button
                 className="btn-rejeitar"
                 onClick={rejeitarAtendimento}
               >
                 Rejeitar
               </button>
-              <button 
+              <button
                 className="btn-aceitar"
                 onClick={aceitarAtendimento}
               >
                 Aceitar Atendimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Nome do Cliente */}
+      {modalEditarNome && (
+        <div className="modal-overlay">
+          <div className="modal-editar-nome-dashboard">
+            <div className="modal-header">
+              <h3>Editar Nome do Cliente</h3>
+              <button 
+                className="btn-close"
+                onClick={cancelarEdicaoNome}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="cliente-info">
+                <p><strong>Atendimento:</strong> {atendimentoSelecionado?.id || 'ATD-2024-001'}</p>
+                <p><strong>Telefone:</strong> {atendimentoSelecionado?.telefone || '+55 11 99999-9999'}</p>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="novoNomeCliente">Nome do Cliente:</label>
+                <input
+                  type="text"
+                  id="novoNomeCliente"
+                  value={novoNomeCliente}
+                  onChange={(e) => setNovoNomeCliente(e.target.value)}
+                  placeholder="Digite o novo nome"
+                  autoFocus
+                />
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button 
+                className="btn-cancelar"
+                onClick={cancelarEdicaoNome}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-salvar"
+                onClick={salvarNomeCliente}
+                disabled={!novoNomeCliente.trim()}
+              >
+                Salvar
               </button>
             </div>
           </div>

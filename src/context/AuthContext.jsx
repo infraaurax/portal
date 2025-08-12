@@ -31,39 +31,25 @@ export const AuthProvider = ({ children }) => {
       setSession(session)
       if (session) {
         try {
-          // Buscar dados completos do operador
-          const operador = await buscarPorEmail(session.user.email)
-          
-          if (operador) {
-            // Criar usuário com dados completos do operador
-            const completeUser = {
-              id: operador.id,
-              authId: session.user.id,
-              nome: operador.nome,
-              email: operador.email,
-              perfil: operador.perfil,
-              status: operador.status,
-              habilitado: operador.habilitado
-            }
-            setUser(completeUser)
-            console.log('✅ [AuthContext] Sessão restaurada com dados completos do operador')
-          } else {
-            // Fallback para dados básicos se operador não for encontrado
-            const basicUser = {
-              id: session.user.id,
-              email: session.user.email,
-              status: 'Ativo',
-              habilitado: true
-            }
-            setUser(basicUser)
-            console.warn('⚠️ [AuthContext] Operador não encontrado, usando dados básicos')
+          // Temporariamente usando dados básicos para evitar problemas com RPC
+          const basicUser = {
+            id: session.user.id,
+            email: session.user.email,
+            nome: session.user.email.split('@')[0], // Nome temporário baseado no email
+            perfil: 'Operador',
+            status: 'Ativo',
+            habilitado: true
           }
+          setUser(basicUser)
+          console.log('✅ [AuthContext] Sessão restaurada com dados básicos (modo temporário)')
         } catch (error) {
-          console.error('❌ [AuthContext] Erro ao buscar dados do operador na sessão:', error)
+          console.error('❌ [AuthContext] Erro ao processar sessão:', error)
           // Fallback para dados básicos em caso de erro
           const basicUser = {
             id: session.user.id,
             email: session.user.email,
+            nome: 'Usuário',
+            perfil: 'Operador',
             status: 'Ativo',
             habilitado: true
           }
@@ -104,25 +90,31 @@ export const AuthProvider = ({ children }) => {
 
 
 
-  const login = async (email, password) => {
+  const login = async (email, password, isPasswordless = false) => {
     console.log('🚀 [AuthContext] Iniciando processo de login para:', email)
     
     try {
       setLoading(true)
       
       console.log('🚀 [AuthContext] Iniciando processo de login')
-      console.log('📧 [AuthContext] Passo 1: Validando credenciais no Supabase Auth')
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
+      
+      // Se for login sem senha, pular a validação de credenciais do Supabase
+      if (!isPasswordless) {
+        console.log('📧 [AuthContext] Passo 1: Validando credenciais no Supabase Auth')
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        })
 
-      if (error) {
-        console.error('❌ [AuthContext] Passo 1 - Falha: Credenciais inválidas:', error)
-        throw error
+        if (error) {
+          console.error('❌ [AuthContext] Passo 1 - Falha: Credenciais inválidas:', error)
+          throw error
+        }
+        
+        console.log('✅ [AuthContext] Passo 1 - Sucesso: Credenciais validadas')
+      } else {
+        console.log('🔓 [AuthContext] Login sem senha - pulando validação de credenciais')
       }
-
-      console.log('✅ [AuthContext] Passo 1 - Sucesso: Credenciais validadas')
       
       // Passo 2: Verificar status do operador e capturar dados completos
       console.log('🔍 [AuthContext] Passo 2: Verificando status do operador e capturando dados')

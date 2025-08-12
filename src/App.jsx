@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleProtectedRoute from './components/RoleProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
@@ -24,11 +25,31 @@ function App() {
               <Layout />
             </ProtectedRoute>
           }>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="atendimentos-nao-finalizados" element={<AtendimentosNaoFinalizados />} />
-            <Route path="perguntas-nao-respondidas" element={<PerguntasNaoRespondidas />} />
-            <Route path="usuarios" element={<Usuarios />} />
-            <Route path="categorias" element={<Categorias />} />
+            <Route path="dashboard" element={
+              <RoleProtectedRoute allowedProfiles={['Admin', 'Operador']}>
+                <Dashboard />
+              </RoleProtectedRoute>
+            } />
+            <Route path="atendimentos-nao-finalizados" element={
+              <RoleProtectedRoute allowedProfiles={['Admin', 'Operador']}>
+                <AtendimentosNaoFinalizados />
+              </RoleProtectedRoute>
+            } />
+            <Route path="perguntas-nao-respondidas" element={
+              <RoleProtectedRoute allowedProfiles={['Admin']}>
+                <PerguntasNaoRespondidas />
+              </RoleProtectedRoute>
+            } />
+            <Route path="usuarios" element={
+              <RoleProtectedRoute allowedProfiles={['Admin']}>
+                <Usuarios />
+              </RoleProtectedRoute>
+            } />
+            <Route path="categorias" element={
+              <RoleProtectedRoute allowedProfiles={['Admin']}>
+                <Categorias />
+              </RoleProtectedRoute>
+            } />
           </Route>
         </Routes>
       </Router>

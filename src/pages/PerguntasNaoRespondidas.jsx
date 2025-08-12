@@ -117,6 +117,32 @@ const PerguntasNaoRespondidas = () => {
     }
   };
 
+  // Função para calcular tempo sem resposta
+  const calcularTempoSemResposta = (dataString) => {
+    if (!dataString) return 'Tempo indeterminado';
+    try {
+      const dataCriacao = new Date(dataString);
+      const agora = new Date();
+      const diferencaMs = agora - dataCriacao;
+      
+      const minutos = Math.floor(diferencaMs / (1000 * 60));
+      const horas = Math.floor(minutos / 60);
+      const dias = Math.floor(horas / 24);
+      
+      if (dias > 0) {
+        return `${dias} dia${dias > 1 ? 's' : ''}`;
+      } else if (horas > 0) {
+        return `${horas} hora${horas > 1 ? 's' : ''}`;
+      } else if (minutos > 0) {
+        return `${minutos} minuto${minutos > 1 ? 's' : ''}`;
+      } else {
+        return 'Menos de 1 minuto';
+      }
+    } catch {
+      return 'Tempo indeterminado';
+    }
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -162,6 +188,9 @@ const PerguntasNaoRespondidas = () => {
                           <span className="question-user">👤 {obterNomeOperador(pergunta.operador_id)}</span>
                           <span className="question-date">📅 {formatarData(pergunta.created_at || pergunta.data_hora)}</span>
                           <span className="question-category">🏷️ {obterNomeCategoria(pergunta.categoria_id)}</span>
+                        </div>
+                        <div className="question-time-pending">
+                          <span className="time-pending">⏰ Sem resposta há {calcularTempoSemResposta(pergunta.created_at || pergunta.data_hora)}</span>
                         </div>
                       </div>
                       <div className="question-content">

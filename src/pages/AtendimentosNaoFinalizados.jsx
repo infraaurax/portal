@@ -8,6 +8,9 @@ const AtendimentosNaoFinalizados = () => {
   const [modalRealocacao, setModalRealocacao] = useState(false);
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
   const [operadorSelecionado, setOperadorSelecionado] = useState('');
+  const [modalEditarNome, setModalEditarNome] = useState(false);
+  const [clienteEditando, setClienteEditando] = useState(null);
+  const [novoNome, setNovoNome] = useState('');
 
   // Mock de atendimentos não finalizados
   const atendimentosNaoFinalizados = [
@@ -98,6 +101,31 @@ const AtendimentosNaoFinalizados = () => {
       setOperadorSelecionado('');
     }
   };
+
+  // Função para abrir modal de edição de nome
+  const editarNomeCliente = (atendimento) => {
+    setClienteEditando(atendimento);
+    setNovoNome(atendimento.nome);
+    setModalEditarNome(true);
+  };
+
+  // Função para salvar novo nome
+  const salvarNovoNome = () => {
+    if (novoNome.trim() && clienteEditando) {
+      console.log('Alterando nome do cliente', clienteEditando.id, 'para', novoNome);
+      // Aqui seria a lógica para salvar o novo nome na API
+      setModalEditarNome(false);
+      setClienteEditando(null);
+      setNovoNome('');
+    }
+  };
+
+  // Função para cancelar edição de nome
+   const cancelarEdicaoNome = () => {
+     setModalEditarNome(false);
+     setClienteEditando(null);
+     setNovoNome('');
+   };
 
   // Função para finalizar atendimento
   const finalizarAtendimento = (atendimento) => {
@@ -192,7 +220,19 @@ const AtendimentosNaoFinalizados = () => {
                             <div className="cliente-info">
                               <div className="cliente-avatar">{atendimento.avatar}</div>
                               <div className="cliente-dados">
-                                <h4>{atendimento.nome}</h4>
+                                <div className="nome-container">
+                                  <h4>{atendimento.nome}</h4>
+                                  <button 
+                                    className="btn-edit-nome-cliente"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      editarNomeCliente(atendimento);
+                                    }}
+                                    title="Editar nome do cliente"
+                                  >
+                                    ✏️
+                                  </button>
+                                </div>
                                 <p>{atendimento.telefone}</p>
                               </div>
                             </div>
@@ -303,6 +343,58 @@ const AtendimentosNaoFinalizados = () => {
                 disabled={!operadorSelecionado}
               >
                 Realocar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Nome */}
+      {modalEditarNome && clienteEditando && (
+        <div className="modal-overlay">
+          <div className="modal-editar-nome">
+            <div className="modal-header">
+              <h3>Editar Nome do Cliente</h3>
+              <button 
+                className="btn-close"
+                onClick={cancelarEdicaoNome}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="cliente-info">
+                <p><strong>Atendimento:</strong> {clienteEditando.id}</p>
+                <p><strong>Telefone:</strong> {clienteEditando.telefone}</p>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="novoNome">Nome do Cliente:</label>
+                <input
+                  type="text"
+                  id="novoNome"
+                  value={novoNome}
+                  onChange={(e) => setNovoNome(e.target.value)}
+                  placeholder="Digite o novo nome"
+                  autoFocus
+                />
+              </div>
+            </div>
+            
+            <div className="modal-actions">
+              <button 
+                className="btn-cancelar"
+                onClick={cancelarEdicaoNome}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-salvar"
+                onClick={salvarNovoNome}
+                disabled={!novoNome.trim()}
+              >
+                Salvar
               </button>
             </div>
           </div>

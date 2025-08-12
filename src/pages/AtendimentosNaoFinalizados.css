@@ -166,11 +166,38 @@
   flex-shrink: 0;
 }
 
+.nome-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .cliente-dados h4 {
   margin: 0 0 4px 0;
   color: #1f2937;
   font-size: 1.1rem;
   font-weight: 600;
+}
+
+.btn-edit-nome-cliente {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  color: #666;
+}
+
+.btn-edit-nome-cliente:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.atendimento-card:hover .btn-edit-nome-cliente {
+  opacity: 1;
 }
 
 .cliente-dados p {
@@ -332,8 +359,118 @@
 }
 
 .btn-finalizar:hover {
-  background: #b91c1c;
+  background: #dc2626;
   transform: translateY(-1px);
+}
+
+/* Modal de Edição de Nome */
+.modal-editar-nome {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modal-editar-nome .modal-header {
+  padding: 20px 20px 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 20px;
+}
+
+.modal-editar-nome .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.modal-editar-nome .modal-body {
+  padding: 0 20px;
+}
+
+.modal-editar-nome .cliente-info {
+  background: #f9fafb;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.modal-editar-nome .cliente-info p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.modal-editar-nome .form-group {
+  margin-bottom: 20px;
+}
+
+.modal-editar-nome .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.modal-editar-nome .form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.modal-editar-nome .form-group input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal-editar-nome .modal-actions {
+  padding: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-cancelar {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancelar:hover {
+  background: #4b5563;
+}
+
+.btn-salvar {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-salvar:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.btn-salvar:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
 }
 
 /* Modal de Realocação */
@@ -453,10 +590,11 @@
 }
 
 .modal-actions {
-  padding: 0 20px 20px 20px;
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    background-color: #fff;
 }
 
 .btn-cancelar {

@@ -320,6 +320,16 @@ const Categorias = () => {
             )}
             <span className="category-index">{category.indice}</span>
             <span className="category-name">{category.nome}</span>
+            <button 
+              className="btn-edit-name"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditModal(category);
+              }}
+              title="Editar nome da categoria"
+            >
+              ✏️
+            </button>
           </div>
           <div className="category-actions">
             <button 

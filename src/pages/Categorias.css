@@ -129,6 +129,28 @@
   opacity: 1;
 }
 
+.btn-edit-name {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: 8px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  color: #666;
+}
+
+.btn-edit-name:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.category-node:hover .btn-edit-name {
+  opacity: 1;
+}
+
 .btn-add-child {
   background: #4caf50;
   color: white;
@@ -277,13 +299,13 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 .modal-content-info {
-  background: white;
-  border-radius: 18px;
-  width: 90%;
-  max-width: 1024px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: #fff;
+    border-radius: 18px;
+    width: 70%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px #00000026;
 }
 
 .modal-header {
@@ -368,10 +390,11 @@
 }
 
 .modal-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    background-color: #fff;
 }
 
 .btn-primary, .btn-secondary, .btn-danger {

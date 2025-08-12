@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { buscarTodos, criar, atualizar, alterarStatus } from '../services/operadoresService';
+import { supabase } from '../lib/supabase';
 import './PageStyles.css';
 import './Usuarios.css';
 
@@ -193,10 +194,26 @@ const Usuarios = () => {
     handleCloseModal();
   };
 
-  const handleResendPassword = (usuario) => {
-    // Simula o reenvio da primeira senha
-    setStatusMessage(`Primeira senha reenviada para ${usuario.email}!`);
-    setTimeout(() => setStatusMessage(''), 3000);
+  const handleResendPassword = async (usuario) => {
+    try {
+      setStatusMessage('Enviando email de reset de senha...');
+      
+      const { error } = await supabase.auth.resetPasswordForEmail(usuario.email, {
+        redirectTo: `${window.location.origin}/change-password`
+      });
+      
+      if (error) {
+        console.error('Erro ao enviar email de reset:', error);
+        setStatusMessage(`Erro ao enviar email: ${error.message}`);
+      } else {
+        setStatusMessage(`Email de reset de senha enviado para ${usuario.email}!`);
+      }
+    } catch (error) {
+      console.error('Erro inesperado:', error);
+      setStatusMessage('Erro inesperado ao enviar email de reset.');
+    }
+    
+    setTimeout(() => setStatusMessage(''), 5000);
   };
 
   const filteredUsuarios = usuarios.filter(usuario => {

@@ -23,7 +23,7 @@
 }
 
 .logo-container img {
- 
+
   width: auto;
   height: auto;
   object-fit: contain;
@@ -140,6 +140,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -218,9 +219,12 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.7;
   }
@@ -230,6 +234,7 @@
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
@@ -237,7 +242,6 @@
 
 .login-button:hover {
   background: #1a1548;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(34, 28, 98, 0.3);
 }
 
@@ -257,6 +261,72 @@
 .forgot-password-link:hover {
   color: #D5DE23;
   text-decoration: underline;
+}
+
+.code-input-container {
+  display: flex;
+  gap: 10px;
+}
+
+.passwordless-access-button {
+  background: #D5DE23;
+  color: #221C62;
+  padding: 0.875rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+  width: 100%;
+  text-align: center;
+}
+
+.passwordless-access-button:hover {
+  background: #c4cd1f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(213, 222, 35, 0.3);
+}
+
+.passwordless-access-button:active {
+  transform: translateY(0);
+}
+
+.passwordless-access-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.success-message {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.success-icon {
+  font-size: 3rem;
+  color: #10b981;
+  margin-bottom: 1rem;
+  font-weight: bold;
+}
+
+.success-message h3 {
+  color: #221C62;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+}
+
+.success-message p {
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.success-message p strong {
+  color: #221C62;
+  font-weight: 600;
 }
 
 .test-credentials {
@@ -298,20 +368,20 @@
   .login-container {
     flex-direction: column;
   }
-  
+
   .login-logo-section {
     flex: 0 0 20%;
   }
-  
+
   .login-form-section {
     flex: 0 0 60%;
     padding: 1rem;
   }
-  
+
   .login-decorative-section {
     flex: 0 0 20%;
   }
-  
+
   .login-title {
     font-size: 1.5rem;
   }
@@ -422,7 +492,8 @@
   margin-top: 1rem;
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
   padding: 0.875rem 1.5rem;
   border-radius: 8px;
   font-size: 1rem;
@@ -439,7 +510,6 @@
 
 .btn-primary:hover:not(:disabled) {
   background: #1a1548;
-  transform: translateY(-1px);
 }
 
 .btn-primary:disabled {
@@ -451,6 +521,7 @@
   background: #f8f9fa;
   color: #666;
   border: 1px solid #e1e5e9;
+  margin-top: 1rem;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -467,6 +538,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -477,6 +549,7 @@
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -535,20 +608,21 @@
     width: 95%;
     margin: 1rem;
   }
-  
+
   .modal-header {
     padding: 1.5rem 1.5rem 1rem 1.5rem;
   }
-  
+
   .modal-form {
     padding: 1.5rem;
   }
-  
+
   .modal-buttons {
     flex-direction: column;
   }
-  
-  .btn-primary, .btn-secondary {
+
+  .btn-primary,
+  .btn-secondary {
     width: 100%;
   }
 }
