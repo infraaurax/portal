@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { buscarPorEmail } from '../services/operadoresService'
+import { buscarPorEmail, alterarHabilitacao } from '../services/operadoresService'
 
 const AuthContext = createContext()
 
@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
   // Estados para atendimento
   const [atendimentoHabilitado, setAtendimentoHabilitado] = useState(false)
   const [atendimentoPausado, setAtendimentoPausado] = useState(false)
+  const [tokenExpirationTimer, setTokenExpirationTimer] = useState(null)
 
   useEffect(() => {
     console.log('🔄 [AuthContext] Inicializando AuthProvider com Supabase Auth...')
@@ -197,6 +198,9 @@ export const AuthProvider = ({ children }) => {
       setAtendimentoHabilitado(false)
       setAtendimentoPausado(false)
       
+      // Limpar timer de expiração mesmo com erro
+      limparTimerExpiracao()
+      
       console.log('✅ [AuthContext] Passo 1 - Sucesso: Desconectado do Supabase Auth')
       console.log('🧹 [AuthContext] Passo 2: Limpeza automática do estado será executada')
     } catch (error) {
@@ -245,6 +249,92 @@ export const AuthProvider = ({ children }) => {
       }
     }
   }
+
+  // Função para configurar timer de expiração do token
+  const configurarTimerExpiracao = (session) => {
+    console.log('⏰ [AuthContext] Configurando timer de expiração do token');
+    
+    // Limpar timer anterior se existir
+    if (tokenExpirationTimer) {
+      clearTimeout(tokenExpirationTimer);
+      setTokenExpirationTimer(null);
+    }
+    
+    if (!session || !session.expires_at) {
+      console.log('⚠️ [AuthContext] Sessão inválida ou sem data de expiração');
+      return;
+    }
+    
+    const expiresAt = new Date(session.expires_at * 1000); // Converter para milliseconds
+    const now = new Date();
+    const timeUntilExpiration = expiresAt.getTime() - now.getTime();
+    
+    console.log('⏰ [AuthContext] Token expira em:', expiresAt.toLocaleString());
+    console.log('⏰ [AuthContext] Tempo até expiração:', Math.round(timeUntilExpiration / 1000 / 60), 'minutos');
+    
+    if (timeUntilExpiration > 0) {
+      const timer = setTimeout(async () => {
+        console.log('⏰ [AuthContext] Token expirado - desabilitando atendimentos');
+        await desabilitarAtendimentoPorExpiracao();
+      }, timeUntilExpiration);
+      
+      setTokenExpirationTimer(timer);
+      console.log('✅ [AuthContext] Timer de expiração configurado');
+    } else {
+      console.log('⚠️ [AuthContext] Token já expirado');
+      desabilitarAtendimentoPorExpiracao();
+    }
+  };
+  
+  // Função para desabilitar atendimento quando token expira
+  const desabilitarAtendimentoPorExpiracao = async () => {
+    console.log('🔒 [AuthContext] Desabilitando atendimento por expiração do token');
+    
+    try {
+      // Desabilitar atendimento localmente
+      setAtendimentoHabilitado(false);
+      setAtendimentoPausado(false);
+      
+      // Se temos dados do usuário, desabilitar no banco também
+      if (user && user.email) {
+        console.log('🔄 [AuthContext] Desabilitando atendimento no banco para:', user.email);
+        const operador = await buscarPorEmail(user.email);
+        
+        if (operador) {
+          await alterarHabilitacao(operador.id, false);
+          console.log('✅ [AuthContext] Atendimento desabilitado no banco');
+        }
+      }
+      
+      console.log('✅ [AuthContext] Atendimento desabilitado por expiração do token');
+      
+    } catch (error) {
+      console.error('❌ [AuthContext] Erro ao desabilitar atendimento por expiração:', error);
+    }
+  };
+  
+  // Função para limpar timer de expiração
+  const limparTimerExpiracao = () => {
+    if (tokenExpirationTimer) {
+      console.log('🧹 [AuthContext] Limpando timer de expiração');
+      clearTimeout(tokenExpirationTimer);
+      setTokenExpirationTimer(null);
+    }
+  };
+  
+  // Atualizar useEffect para configurar timer quando sessão mudar
+  useEffect(() => {
+    if (session) {
+      configurarTimerExpiracao(session);
+    } else {
+      limparTimerExpiracao();
+    }
+    
+    // Cleanup na desmontagem
+    return () => {
+      limparTimerExpiracao();
+    };
+  }, [session]);
 
   const value = {
     user,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { validarSenhaEHabilitar, listarTodosOperadores, buscarPorEmail } from '../services/operadoresService';
 import './PageStyles.css';
 import './Dashboard.css';
 
@@ -277,12 +278,49 @@ const Dashboard = () => {
     return passaFiltroStatus && passaFiltroBusca;
   });
 
-  // Resetar status de atendimento sempre que o usuário fizer login
+  // Verificar status de habilitação no banco de dados quando o usuário fizer login
   useEffect(() => {
+    const verificarHabilitacaoOperador = async () => {
+      if (user?.email) {
+        try {
+          console.log('🔄 [Dashboard] Verificando status de habilitação para:', user.email);
+          
+          // Buscar operador no banco de dados
+          const operador = await buscarPorEmail(user.email);
+          
+          if (operador) {
+            console.log('✅ [Dashboard] Operador encontrado:', {
+              id: operador.id,
+              nome: operador.nome,
+              email: operador.email,
+              habilitado: operador.habilitado
+            });
+            
+            // Definir status de habilitação baseado no banco de dados
+            setAtendimentoHabilitado(operador.habilitado === true);
+            
+            if (operador.habilitado === true) {
+              console.log('✅ [Dashboard] Atendimentos liberados automaticamente');
+            } else {
+              console.log('⚠️ [Dashboard] Atendimentos bloqueados - operador não habilitado');
+            }
+          } else {
+            console.log('❌ [Dashboard] Operador não encontrado no banco de dados');
+            setAtendimentoHabilitado(false);
+          }
+        } catch (error) {
+          console.error('❌ [Dashboard] Erro ao verificar habilitação do operador:', error);
+          setAtendimentoHabilitado(false);
+        }
+      } else {
+        setAtendimentoHabilitado(false);
+      }
+    };
+    
     if (user) {
-      setAtendimentoHabilitado(false);
+      verificarHabilitacaoOperador();
     }
-  }, [user]);
+  }, [user, setAtendimentoHabilitado]);
 
   // Selecionar o primeiro atendimento por padrão
   useEffect(() => {
@@ -371,32 +409,67 @@ const Dashboard = () => {
   const verificarSenha = async () => {
     const senhaCompleta = senhaDigitada.join('');
 
+    console.log('🔐 [Dashboard] Iniciando verificação de senha');
+    console.log('🔐 [Dashboard] Usuário logado:', user?.email);
+    console.log('🔐 [Dashboard] Senha digitada:', senhaCompleta);
+    console.log('🔐 [Dashboard] Senha gerada:', senhaGerada);
+
     if (senhaCompleta.length !== 6) {
+      console.log('❌ [Dashboard] Senha incompleta, apenas', senhaCompleta.length, 'caracteres');
       alert('Por favor, digite todos os 6 caracteres da senha.');
       return;
     }
 
+    if (!user?.email) {
+      console.log('❌ [Dashboard] Usuário não encontrado ou email não disponível');
+      alert('Erro: usuário não identificado. Faça login novamente.');
+      return;
+    }
+
     setVerificandoSenha(true);
+    console.log('🔄 [Dashboard] Iniciando processo de validação...');
 
     try {
-      // Simular delay de verificação
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      if (senhaCompleta === senhaGerada) {
-        setAtendimentoHabilitado(true);
-        alert('Atendimento habilitado com sucesso!');
-        fecharModalHabilitacao();
-      } else {
-        alert('Senha incorreta. Tente novamente.');
+      // Validar senha e habilitar atendimento via SQL
+      const resultado = await validarSenhaEHabilitar(user.email, senhaCompleta, senhaGerada);
+      
+      console.log('✅ [Dashboard] Validação bem-sucedida:', resultado);
+      
+      // Atualizar estado local
+      setAtendimentoHabilitado(true);
+      
+      // Exibir mensagem de sucesso
+      alert(resultado.mensagem || 'Atendimento habilitado com sucesso!');
+      
+      // Fechar modal
+      fecharModalHabilitacao();
+      
+      console.log('✅ [Dashboard] Atendimento habilitado e modal fechada');
+      
+    } catch (error) {
+      console.error('❌ [Dashboard] Erro na validação:', error);
+      
+      let mensagemErro = 'Erro ao verificar senha. Tente novamente.';
+      
+      if (error.message === 'Senha incorreta') {
+        mensagemErro = 'Senha incorreta. Tente novamente.';
+        console.log('🔄 [Dashboard] Limpando campos de senha para nova tentativa');
         setSenhaDigitada(['', '', '', '', '', '']);
         // Focar no primeiro campo
-        const primeiroCampo = document.getElementById('senha-0');
-        if (primeiroCampo) primeiroCampo.focus();
+        setTimeout(() => {
+          const primeiroCampo = document.getElementById('senha-0');
+          if (primeiroCampo) primeiroCampo.focus();
+        }, 100);
+      } else if (error.message === 'Operador não encontrado') {
+        mensagemErro = 'Operador não encontrado no sistema.';
       }
-    } catch (error) {
-      alert('Erro ao verificar senha. Tente novamente.');
+      // Removido tratamento para 'Operador inativo' - status será verificado no login
+      
+      alert(mensagemErro);
+      
     } finally {
       setVerificandoSenha(false);
+      console.log('🔄 [Dashboard] Processo de verificação finalizado');
     }
   };
 
@@ -425,6 +498,27 @@ const Dashboard = () => {
   const fecharModalConfirmacao = () => {
     setModalConfirmacao(false);
   };
+
+  // Função para testar listagem de operadores (debug)
+  const testarListagemOperadores = async () => {
+    try {
+      console.log('🔄 [Dashboard] Testando listagem de operadores...');
+      const operadores = await listarTodosOperadores();
+      console.log('✅ [Dashboard] Listagem concluída:', operadores);
+      return operadores;
+    } catch (error) {
+      console.error('❌ [Dashboard] Erro ao listar operadores:', error);
+      throw error;
+    }
+  };
+
+  // Expor função para console (debug)
+  React.useEffect(() => {
+    window.testarListagemOperadores = testarListagemOperadores;
+    return () => {
+      delete window.testarListagemOperadores;
+    };
+  }, []);
 
   // Função para formatar tempo em MM:SS
   const formatarTempo = (segundos) => {

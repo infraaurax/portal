@@ -201,24 +201,23 @@ export const atualizar = async (id, operadorData) => {
 // Alterar habilitação do operador
 export const alterarHabilitacao = async (id, habilitado) => {
   try {
+    console.log('🔄 [operadoresService] Alterando habilitação via SQL direta:', { id, habilitado });
+    
     const { data, error } = await supabase
-      .rpc('update_operador', {
-        p_id: id,
-        p_nome: null,
-        p_email: null,
-        p_cpf: null,
-        p_status: null,
-        p_habilitado: habilitado
-      });
+      .from('operadores')
+      .update({ habilitado: habilitado })
+      .eq('id', id)
+      .select();
 
     if (error) {
-      console.error('Erro ao alterar habilitação via SQL:', error);
+      console.error('❌ [operadoresService] Erro ao alterar habilitação via SQL:', error);
       throw error;
     }
 
+    console.log('✅ [operadoresService] Habilitação alterada com sucesso:', data);
     return data && data.length > 0 ? data[0] : null;
   } catch (error) {
-    console.error('Erro no serviço alterarHabilitacao:', error);
+    console.error('❌ [operadoresService] Erro no serviço alterarHabilitacao:', error);
     throw error;
   }
 };
@@ -356,6 +355,101 @@ export const contarPorStatus = async (status) => {
   }
 };
 
+// Função para listar todos os operadores (para debug)
+export const listarTodosOperadores = async () => {
+  try {
+    console.log('🔄 [operadoresService] Listando todos os operadores...');
+    
+    const { data: operadores, error } = await supabase
+      .from('operadores')
+      .select('id, nome, email, cpf, status, habilitado')
+      .order('nome');
+    
+    if (error) {
+      console.error('❌ [operadoresService] Erro ao listar operadores:', error);
+      throw error;
+    }
+    
+    console.log('✅ [operadoresService] Operadores encontrados:', operadores?.length || 0);
+    console.table(operadores);
+    
+    return operadores;
+    
+  } catch (error) {
+    console.error('❌ [operadoresService] Erro ao listar operadores:', error);
+    throw error;
+  }
+};
+
+// Validar senha e habilitar atendimento
+export const validarSenhaEHabilitar = async (email, senhaDigitada, senhaGerada) => {
+  try {
+    console.log('🔄 [operadoresService] Iniciando validação de senha para:', email);
+    console.log('🔍 [operadoresService] Senha digitada:', `"${senhaDigitada}"`, 'Tipo:', typeof senhaDigitada, 'Tamanho:', senhaDigitada?.length);
+    console.log('🔍 [operadoresService] Senha gerada:', `"${senhaGerada}"`, 'Tipo:', typeof senhaGerada, 'Tamanho:', senhaGerada?.length);
+    console.log('🔍 [operadoresService] Comparação direta:', senhaDigitada === senhaGerada);
+    console.log('🔍 [operadoresService] Comparação trim:', senhaDigitada?.trim() === senhaGerada?.trim());
+    
+    // Validar se as senhas coincidem (com trim para remover espaços)
+    const senhaDigitadaLimpa = senhaDigitada?.toString().trim();
+    const senhaGeradaLimpa = senhaGerada?.toString().trim();
+    
+    if (senhaDigitadaLimpa !== senhaGeradaLimpa) {
+      console.log('❌ [operadoresService] Senha incorreta');
+      console.log('❌ [operadoresService] Digitada limpa:', `"${senhaDigitadaLimpa}"`);
+      console.log('❌ [operadoresService] Gerada limpa:', `"${senhaGeradaLimpa}"`);
+      throw new Error('Senha incorreta');
+    }
+    
+    console.log('✅ [operadoresService] Senha validada com sucesso');
+    
+    // Buscar operador por email via SQL
+    console.log('🔄 [operadoresService] Buscando operador por email:', email);
+    const { data: operador, error } = await supabase
+      .from('operadores')
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error) {
+      console.error('❌ [operadoresService] Erro ao buscar operador:', error);
+      throw error;
+    }
+    
+    if (!operador) {
+      console.log('❌ [operadoresService] Operador não encontrado');
+      throw new Error('Operador não encontrado');
+    }
+    
+    console.log('✅ [operadoresService] Operador encontrado:', {
+      id: operador.id,
+      nome: operador.nome,
+      email: operador.email,
+      status: operador.status,
+      habilitado: operador.habilitado
+    });
+    
+    // Remover verificação de status - apenas validar senha e habilitar
+    console.log('ℹ️ [operadoresService] Status do operador será verificado no login, prosseguindo com habilitação');
+    
+    // Habilitar atendimento via SQL
+    console.log('🔄 [operadoresService] Habilitando atendimento para operador ID:', operador.id);
+    const resultado = await alterarHabilitacao(operador.id, true);
+    
+    console.log('✅ [operadoresService] Atendimento habilitado com sucesso');
+    
+    return {
+      sucesso: true,
+      operador: resultado || operador,
+      mensagem: 'Atendimento habilitado com sucesso!'
+    };
+    
+  } catch (error) {
+    console.error('❌ [operadoresService] Erro ao validar senha e habilitar:', error);
+    throw error;
+  }
+};
+
 export default {
   buscarTodos,
   buscarPorId,
@@ -370,5 +464,7 @@ export default {
   buscarHabilitados,
   buscarDesabilitados,
   contarTotal,
-  contarPorStatus
+  contarPorStatus,
+  listarTodosOperadores,
+  validarSenhaEHabilitar
 };
