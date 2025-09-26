@@ -15,6 +15,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
+// Disponibilizar globalmente para scripts de debug
+if (typeof window !== 'undefined') {
+  window.supabase = supabase
+}
+
 // Tipos de dados
 export const PERFIS = {
   ADMIN: 'Admin',
@@ -32,7 +37,8 @@ export const STATUS_ATENDIMENTO = {
   AGUARDANDO: 'aguardando',
   PAUSADO: 'pausado',
   FINALIZADO: 'finalizado',
-  ABANDONADO: 'abandonado'
+  ABANDONADO: 'abandonado',
+  NAO_ATENDIDO: 'nao_atendido'
 }
 
 export const PRIORIDADES = {

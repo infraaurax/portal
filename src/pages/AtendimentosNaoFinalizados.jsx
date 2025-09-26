@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { atendimentosService } from '../services/atendimentosService';
 import './PageStyles.css';
 import './AtendimentosNaoFinalizados.css';
 
@@ -11,79 +12,67 @@ const AtendimentosNaoFinalizados = () => {
   const [modalEditarNome, setModalEditarNome] = useState(false);
   const [clienteEditando, setClienteEditando] = useState(null);
   const [novoNome, setNovoNome] = useState('');
+  const [atendimentosNaoFinalizados, setAtendimentosNaoFinalizados] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock de atendimentos não finalizados
-  const atendimentosNaoFinalizados = [
-    {
-      id: 'ATD-2024-011',
-      nome: 'Carlos Silva',
-      telefone: '+55 11 99999-8888',
-      avatar: 'CS',
-      status: 'nao_atendido',
-      statusTexto: 'Não Atendido',
-      operadorResponsavel: 'João Silva',
-      operadorId: 'operador@exemplo.com',
-      ultimaMensagem: 'Preciso de informações sobre meu seguro de vida',
-      tempoSemResposta: '2h 15min',
-      horarioUltimaMensagem: '13:45',
-      prioridade: 'alta'
-    },
-    {
-      id: 'ATD-2024-012',
-      nome: 'Ana Costa',
-      telefone: '+55 11 98888-7777',
-      avatar: 'AC',
-      status: 'pausado',
-      statusTexto: 'Pausado',
-      operadorResponsavel: 'Maria Santos',
-      operadorId: 'maria.santos@exemplo.com',
-      ultimaMensagem: 'Aguardando documentos para análise',
-      tempoSemResposta: '45min',
-      horarioUltimaMensagem: '14:30',
-      prioridade: 'media'
-    },
-    {
-      id: 'ATD-2024-013',
-      nome: 'Roberto Lima',
-      telefone: '+55 11 97777-6666',
-      avatar: 'RL',
-      status: 'abandonado',
-      statusTexto: 'Abandonado',
-      operadorResponsavel: 'João Silva',
-      operadorId: 'operador@exemplo.com',
-      ultimaMensagem: 'Cliente não respondeu após várias tentativas',
-      tempoSemResposta: '1 dia 3h',
-      horarioUltimaMensagem: '10:20',
-      prioridade: 'baixa'
-    },
-    {
-      id: 'ATD-2024-014',
-      nome: 'Fernanda Oliveira',
-      telefone: '+55 11 96666-5555',
-      avatar: 'FO',
-      status: 'nao_atendido',
-      statusTexto: 'Não Atendido',
-      operadorResponsavel: 'Pedro Costa',
-      operadorId: 'pedro.costa@exemplo.com',
-      ultimaMensagem: 'Quero cancelar minha apólice',
-      tempoSemResposta: '30min',
-      horarioUltimaMensagem: '15:00',
-      prioridade: 'alta'
+  // Carregar atendimentos não finalizados do Supabase
+  useEffect(() => {
+    carregarAtendimentosNaoFinalizados();
+  }, []);
+
+  const carregarAtendimentosNaoFinalizados = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const atendimentos = await atendimentosService.buscarNaoFinalizados();
+      setAtendimentosNaoFinalizados(atendimentos);
+      console.log('✅ Atendimentos não finalizados carregados:', atendimentos);
+    } catch (err) {
+      console.error('❌ Erro ao carregar atendimentos não finalizados:', err);
+      setError('Erro ao carregar atendimentos não finalizados');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  // Mock de operadores disponíveis
-  const operadoresDisponiveis = [
-    { id: 'operador@exemplo.com', nome: 'Operador Exemplo' },
-    { id: 'maria.santos@exemplo.com', nome: 'Maria Santos' },
-    { id: 'pedro.costa@exemplo.com', nome: 'Pedro Costa' },
-    { id: 'ana.ferreira@exemplo.com', nome: 'Ana Ferreira' }
-  ];
+
+  // Estados para operadores
+  const [operadoresDisponiveis, setOperadoresDisponiveis] = useState([]);
+  const [loadingOperadores, setLoadingOperadores] = useState(false);
+
+  // Carregar operadores quando o modal for aberto
+  useEffect(() => {
+    if (modalRealocacao) {
+      carregarOperadores();
+    }
+  }, [modalRealocacao]);
+
+  const carregarOperadores = async () => {
+    try {
+      setLoadingOperadores(true);
+      const operadores = await atendimentosService.buscarOperadores();
+      setOperadoresDisponiveis(operadores);
+      console.log('👥 Operadores carregados:', operadores);
+    } catch (error) {
+      console.error('❌ Erro ao carregar operadores:', error);
+      alert('Erro ao carregar lista de operadores');
+    } finally {
+      setLoadingOperadores(false);
+    }
+  };
 
   // Função para retomar atendimento
-  const retomarAtendimento = (atendimento) => {
-    console.log('Retomando atendimento:', atendimento.id);
-    // Aqui seria a lógica para retomar o atendimento
+  const retomarAtendimento = async (atendimento) => {
+    try {
+      console.log('Retomando atendimento:', atendimento.id);
+      await atendimentosService.atualizarStatus(atendimento.id, 'em-andamento');
+      alert('Atendimento retomado com sucesso!');
+      await carregarAtendimentosNaoFinalizados(); // Recarregar dados
+    } catch (error) {
+      console.error('Erro ao retomar atendimento:', error);
+      alert('Erro ao retomar atendimento');
+    }
   };
 
   // Função para abrir modal de realocação
@@ -93,12 +82,34 @@ const AtendimentosNaoFinalizados = () => {
   };
 
   // Função para realocar atendimento
-  const realocarAtendimento = () => {
+  const realocarAtendimento = async () => {
     if (operadorSelecionado && atendimentoSelecionado) {
-      console.log('Realocando atendimento', atendimentoSelecionado.id, 'para', operadorSelecionado);
-      setModalRealocacao(false);
-      setAtendimentoSelecionado(null);
-      setOperadorSelecionado('');
+      try {
+        const operadorEscolhido = operadoresDisponiveis.find(op => op.id === operadorSelecionado);
+        
+        console.log('🔄 Realocando atendimento:', {
+          atendimento: atendimentoSelecionado.codigo,
+          deOperador: atendimentoSelecionado.operadorResponsavel,
+          paraOperador: operadorEscolhido?.nome,
+          operadorId: operadorSelecionado
+        });
+
+        // Realocar atendimento (atualiza operador_id e status para aguardando)
+        await atendimentosService.realocarAtendimento(atendimentoSelecionado.id, operadorSelecionado);
+        
+        alert(`Atendimento de ${atendimentoSelecionado.nome} realocado com sucesso para ${operadorEscolhido?.nome}!`);
+        
+        // Fechar modal e limpar seleções
+        setModalRealocacao(false);
+        setAtendimentoSelecionado(null);
+        setOperadorSelecionado('');
+        
+        // Recarregar dados
+        await carregarAtendimentosNaoFinalizados();
+      } catch (error) {
+        console.error('❌ Erro ao realocar atendimento:', error);
+        alert(`Erro ao realocar atendimento: ${error.message || 'Erro desconhecido'}`);
+      }
     }
   };
 
@@ -128,9 +139,36 @@ const AtendimentosNaoFinalizados = () => {
    };
 
   // Função para finalizar atendimento
-  const finalizarAtendimento = (atendimento) => {
-    console.log('Finalizando atendimento:', atendimento.id);
-    // Aqui seria a lógica para finalizar o atendimento
+  const finalizarAtendimento = async (atendimento) => {
+    try {
+      const confirmacao = window.confirm(
+        `Tem certeza que deseja finalizar o atendimento de ${atendimento.nome}?\n\n` +
+        `Código: ${atendimento.codigo}\n` +
+        `Status atual: ${atendimento.statusTexto}\n\n` +
+        `Esta ação mudará o status para "Finalizado".`
+      );
+      
+      if (confirmacao) {
+        console.log('🏁 Finalizando atendimento:', {
+          id: atendimento.id,
+          codigo: atendimento.codigo,
+          nome: atendimento.nome,
+          statusAtual: atendimento.status
+        });
+        
+        // Atualizar status para finalizado
+        const resultado = await atendimentosService.atualizarStatus(atendimento.id, 'finalizado');
+        
+        console.log('✅ Atendimento finalizado:', resultado);
+        alert(`Atendimento de ${atendimento.nome} finalizado com sucesso!`);
+        
+        // Recarregar dados para refletir a mudança
+        await carregarAtendimentosNaoFinalizados();
+      }
+    } catch (error) {
+      console.error('❌ Erro ao finalizar atendimento:', error);
+      alert(`Erro ao finalizar atendimento: ${error.message || 'Erro desconhecido'}`);
+    }
   };
 
   // Função para verificar se o usuário é responsável pelo atendimento
@@ -192,7 +230,25 @@ const AtendimentosNaoFinalizados = () => {
       
       <div className="page-content">
         <div className="atendimentos-nao-finalizados">
-          {atendimentosNaoFinalizados.length === 0 ? (
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-icon">⏳</div>
+              <h3>Carregando atendimentos...</h3>
+              <p>Buscando atendimentos não finalizados</p>
+            </div>
+          ) : error ? (
+            <div className="error-state">
+              <div className="error-icon">❌</div>
+              <h3>Erro ao carregar</h3>
+              <p>{error}</p>
+              <button 
+                className="btn-retry"
+                onClick={carregarAtendimentosNaoFinalizados}
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : atendimentosNaoFinalizados.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">✅</div>
               <h3>Nenhum atendimento pendente</h3>
@@ -315,18 +371,37 @@ const AtendimentosNaoFinalizados = () => {
               
               <div className="operador-selection">
                 <label htmlFor="operador-select">Selecionar novo operador:</label>
-                <select 
-                  id="operador-select"
-                  value={operadorSelecionado}
-                  onChange={(e) => setOperadorSelecionado(e.target.value)}
-                >
-                  <option value="">Selecione um operador...</option>
-                  {operadoresDisponiveis.map((operador) => (
-                    <option key={operador.id} value={operador.id}>
-                      {operador.nome}
+                {loadingOperadores ? (
+                  <div className="loading-operadores">
+                    <span>⏳ Carregando operadores...</span>
+                  </div>
+                ) : (
+                  <select 
+                    id="operador-select"
+                    value={operadorSelecionado}
+                    onChange={(e) => setOperadorSelecionado(e.target.value)}
+                    disabled={operadoresDisponiveis.length === 0}
+                  >
+                    <option value="">
+                      {operadoresDisponiveis.length === 0 
+                        ? 'Nenhum operador disponível' 
+                        : 'Selecione um operador...'
+                      }
                     </option>
-                  ))}
-                </select>
+                    {operadoresDisponiveis.map((operador) => (
+                      <option key={operador.id} value={operador.id}>
+                        {operador.nome} ({operador.perfil})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {operadoresDisponiveis.length === 0 && !loadingOperadores && (
+                  <div className="operadores-error">
+                    <small style={{color: '#ef4444'}}>
+                      ⚠️ Nenhum operador ativo encontrado
+                    </small>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -340,9 +415,9 @@ const AtendimentosNaoFinalizados = () => {
               <button 
                 className="btn-confirmar"
                 onClick={realocarAtendimento}
-                disabled={!operadorSelecionado}
+                disabled={!operadorSelecionado || loadingOperadores}
               >
-                Realocar
+                {loadingOperadores ? 'Carregando...' : 'Realocar'}
               </button>
             </div>
           </div>

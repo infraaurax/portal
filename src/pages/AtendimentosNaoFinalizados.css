@@ -542,10 +542,9 @@
 }
 
 .atendimento-info {
-  background: #f9fafb;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+    background: #f9fafb;
+    padding: 16px;
+    border-bottom-right-radius: 8px;
 }
 
 .atendimento-info h4 {

@@ -1,6 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { validarSenhaEHabilitar, listarTodosOperadores, buscarPorEmail } from '../services/operadoresService';
+import { validarSenhaEHabilitar, listarTodosOperadores, buscarPorEmail, buscarPorId } from '../services/operadoresService';
+import atendimentosService from '../services/atendimentosService';
+import mensagensService from '../services/mensagensService';
+import { categoriasService } from '../services/categoriasService';
+import observacoesService from '../services/observacoesService';
+import { uploadFile, createBucketIfNotExists } from '../services/storageService';
+import { supabase } from '../lib/supabase';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPaperclip, faPaperPlane, faImage, faFile, faFilePdf, faDownload, faFileWord, faFileExcel, faFilePowerpoint, faFileArchive, faFileCode, faFileVideo, faFileAudio, faList, faPause, faClock, faCheck, faXmark, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import './PageStyles.css';
 import './Dashboard.css';
 
@@ -18,237 +26,661 @@ const Dashboard = () => {
   const [modalInformacoes, setModalInformacoes] = useState(false);
   const [termoBusca, setTermoBusca] = useState('');
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
-  const [filtroStatus, setFiltroStatus] = useState('todos');
   const [modalNovoAtendimento, setModalNovoAtendimento] = useState(false);
   const [tempoRestanteAceitar, setTempoRestanteAceitar] = useState(45);
   const [novoAtendimentoData, setNovoAtendimentoData] = useState(null);
   const [intervalAceitar, setIntervalAceitar] = useState(null);
   const [modalEditarNome, setModalEditarNome] = useState(false);
   const [novoNomeCliente, setNovoNomeCliente] = useState('');
+  
+  // Estados para dados do banco
+  const [atendimentos, setAtendimentos] = useState([]);
+  const [atendimentosFiltrados, setAtendimentosFiltrados] = useState([]);
+  const [mensagens, setMensagens] = useState({});
+  const [novosAtendimentos, setNovosAtendimentos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [operadoresNomes, setOperadoresNomes] = useState({});
+  const [categoriasNomes, setCategoriasNomes] = useState({});
+  
+  // Estados para filtros (apenas para Admin)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  
+  // Estados para observações
+  const [observacoes, setObservacoes] = useState([]);
   const [novaObservacao, setNovaObservacao] = useState('');
-  const [observacoes, setObservacoes] = useState([
-    {
-      id: 1,
-      texto: 'Cliente relatou problema com pedido #12345. Verificado status do pedido e informado prazo de entrega. Cliente satisfeito com o atendimento.',
-      data: new Date('2024-01-15T14:25:00'),
-      operador: 'Carlos Santos'
-    }
-  ]);
+  const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
+  
+  // Estado para controlar mensagens não lidas
+  const [atendimentosComNovasMensagens, setAtendimentosComNovasMensagens] = useState(new Set());
+  const [ultimasContagensMensagens, setUltimasContagensMensagens] = useState({});
+  
+  // Estados para edição de email
+  const [modalEditarEmail, setModalEditarEmail] = useState(false);
+  const [novoEmail, setNovoEmail] = useState('');
+  
+  // Estado para o input de mensagem
+  const [mensagemInput, setMensagemInput] = useState('');
+  const [enviandoMensagem, setEnviandoMensagem] = useState(false);
+  
+  // Estado para menu de anexos
+  const [menuAnexosAberto, setMenuAnexosAberto] = useState(false);
+  
+  // Referência para scroll automático
+  const messagesEndRef = useRef(null);
 
-  // Mock de novos atendimentos para aceitar
-  const novosAtendimentosMock = [
-    {
-      id: 'ATD-2024-009',
-      nome: 'Maria Fernanda',
-      telefone: '+55 11 98888-7777',
-      avatar: 'MF',
-      status: 'novo',
-      statusTexto: 'Novo',
-      horario: '10:15',
-      ultimaMensagem: 'Olá, preciso de ajuda com meu seguro',
-      online: true,
-      conversas: [
-        { tipo: 'cliente', mensagem: 'Olá, preciso de ajuda com meu seguro', horario: '10:15' },
-        { tipo: 'ia', mensagem: 'Olá Maria! Como posso ajudá-la com seu seguro?', horario: '10:16' }
-      ]
-    },
-    {
-      id: 'ATD-2024-010',
-      nome: 'Roberto Santos',
-      telefone: '+55 11 97777-6666',
-      avatar: 'RS',
-      status: 'aguardando',
-      statusTexto: 'Aguardando',
-      horario: '10:20',
-      ultimaMensagem: 'Quero fazer um empréstimo urgente',
-      online: false,
-      conversas: [
-        { tipo: 'cliente', mensagem: 'Quero fazer um empréstimo urgente', horario: '10:20' },
-        { tipo: 'ia', mensagem: 'Olá Roberto! Vou te ajudar com o empréstimo. Qual valor precisa?', horario: '10:21' },
-        { tipo: 'cliente', mensagem: 'Preciso de R$ 50.000 para quitar dívidas', horario: '10:22' }
-      ]
-    }
-  ];
+  // Carregar atendimentos do banco de dados
+  useEffect(() => {
+    carregarAtendimentos();
+    carregarNovosAtendimentos();
+    
+    // Disponibilizar funções de teste no console
+    window.supabase = supabase;
+    window.testUploadDebug = {
+      testSupabaseConnection: async () => {
+        console.log('🔍 Testando conexão com Supabase...');
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error('❌ Erro na conexão:', error);
+            return false;
+          }
+          console.log('✅ Conexão com Supabase OK');
+          return true;
+        } catch (error) {
+          console.error('❌ Erro na conexão:', error);
+          return false;
+        }
+      },
+      testBucketExists: async () => {
+        console.log('🪣 Testando se bucket existe...');
+        try {
+          const { data: buckets, error } = await supabase.storage.listBuckets();
+          if (error) {
+            console.error('❌ Erro ao listar buckets:', error);
+            return false;
+          }
+          const bucketExists = buckets.some(bucket => bucket.name === 'documents');
+          console.log('📋 Buckets disponíveis:', buckets.map(b => b.name));
+          console.log(`🪣 Bucket 'documents' existe: ${bucketExists}`);
+          return bucketExists;
+        } catch (error) {
+          console.error('❌ Erro ao verificar bucket:', error);
+          return false;
+        }
+      },
+      testMensagensTable: async () => {
+        console.log('📊 Testando estrutura da tabela mensagens...');
+        try {
+          const { data, error } = await supabase
+            .from('mensagens')
+            .select('id, type, document_name, file_size, file_type')
+            .limit(1);
+          if (error) {
+            console.error('❌ Erro na estrutura da tabela:', error);
+            console.log('💡 Execute o script add-mensagens-columns.sql no Supabase SQL Editor');
+            return false;
+          }
+          console.log('✅ Estrutura da tabela mensagens OK');
+          return true;
+        } catch (error) {
+          console.error('❌ Erro ao testar tabela:', error);
+          return false;
+        }
+      },
+      testFileUpload: async () => {
+        console.log('📁 Testando upload de arquivo...');
+        try {
+          const testContent = 'Este é um arquivo de teste';
+          const testFile = new File([testContent], 'teste.txt', { type: 'text/plain' });
+          const { data, error } = await supabase.storage
+            .from('documents')
+            .upload(`test/${Date.now()}_teste.txt`, testFile);
+          if (error) {
+            console.error('❌ Erro no upload:', error);
+            console.log('💡 Execute o script fix-storage-rls.sql no Supabase SQL Editor');
+            return false;
+          }
+          console.log('✅ Upload de teste OK:', data);
+          await supabase.storage.from('documents').remove([data.path]);
+          return true;
+        } catch (error) {
+          console.error('❌ Erro ao testar upload:', error);
+          return false;
+        }
+      },
+      runAllTests: async () => {
+        console.log('🚀 Executando todos os testes...');
+        const tests = [
+          { name: 'Conexão Supabase', fn: window.testUploadDebug.testSupabaseConnection },
+          { name: 'Bucket Storage', fn: window.testUploadDebug.testBucketExists },
+          { name: 'Tabela Mensagens', fn: window.testUploadDebug.testMensagensTable },
+          { name: 'Upload de Arquivo', fn: window.testUploadDebug.testFileUpload }
+        ];
+        for (const test of tests) {
+          console.log(`\n--- ${test.name} ---`);
+          const result = await test.fn();
+          if (!result) {
+            console.log(`❌ Teste ${test.name} falhou!`);
+            return false;
+          }
+        }
+        console.log('\n✅ Todos os testes passaram!');
+        return true;
+      }
+    };
+    
+    console.log('🔧 Funções de debug disponíveis:');
+    console.log('- window.testUploadDebug.runAllTests() - Executa todos os testes');
+    console.log('- window.testUploadDebug.testSupabaseConnection() - Testa conexão');
+    console.log('- window.testUploadDebug.testBucketExists() - Verifica bucket');
+    console.log('- window.testUploadDebug.testMensagensTable() - Verifica tabela');
+    console.log('- window.testUploadDebug.testFileUpload() - Testa upload');
+  }, []);
 
-  // Mock de dados dos atendimentos
-  const [atendimentos, setAtendimentos] = useState([
-    {
-      id: 'ATD-2024-001',
-      nome: 'João da Silva',
-      telefone: '+55 11 99999-9999',
-      avatar: 'JS',
-      ultimaMensagem: 'Gostaria de informações sobre meu seguro de vida',
-      horario: '14:30',
-      status: 'em-andamento',
-      statusTexto: 'Em andamento',
-      online: true,
-      ativo: true
-    },
-    {
-      id: 'ATD-2024-002',
-      nome: 'Maria Santos',
-      telefone: '+55 11 98888-8888',
-      avatar: 'MS',
-      ultimaMensagem: 'Perfeito! Muito obrigada pelo suporte. Problema resolvido! 😊',
-      horario: '13:45',
-      status: 'finalizado',
-      statusTexto: 'Finalizado',
-      online: false,
-      ativo: false
-    },
-    {
-      id: 'ATD-2024-003',
-      nome: 'Ana Paula Rodrigues',
-      telefone: '+55 11 97777-7777',
-      avatar: 'AR',
-      ultimaMensagem: 'Preciso de informações sobre crédito consignado',
-      horario: '12:20',
-      status: 'aguardando',
-      statusTexto: 'Aguardando',
-      online: true,
-      ativo: false
-    },
-    {
-      id: 'ATD-2024-004',
-      nome: 'Carlos Oliveira',
-      telefone: '+55 11 96666-6666',
-      avatar: 'CO',
-      ultimaMensagem: 'Bom dia! Gostaria de informações sobre precatório',
-      horario: '11:15',
-      status: 'novo',
-      statusTexto: 'Novo',
-      online: true,
-      ativo: false
-    },
-    {
-      id: 'ATD-2024-005',
-      nome: 'Fernanda Costa Lima',
-      telefone: '+55 11 95555-5555',
-      avatar: 'FL',
-      ultimaMensagem: 'Meu seguro auto foi recusado. Podem verificar?',
-      horario: '10:30',
-      status: 'em-andamento',
-      statusTexto: 'Em andamento',
-      online: false,
-      ativo: false
-    },
-    {
-      id: 'ATD-2024-006',
-      nome: 'Roberto Mendes',
-      telefone: '+55 11 94444-4444',
-      avatar: 'RM',
-      ultimaMensagem: 'Preciso de reembolso do meu precatório urgente',
-      horario: '09:45',
-      status: 'aguardando',
-      statusTexto: 'Aguardando',
-      online: true,
-      ativo: false
-    },
-    {
-      id: 'ATD-2024-007',
-      nome: 'Juliana Pereira',
-      telefone: '+55 11 93333-3333',
-      avatar: 'JP',
-      ultimaMensagem: 'Olá! Como faço para contratar crédito pessoal?',
-      horario: '09:12',
-      status: 'novo',
-      statusTexto: 'Novo',
-      online: true,
-      ativo: false
-    },
-    {
-      id: 'ATD-2024-008',
-      nome: 'Eduardo Silva',
-      telefone: '+55 11 92222-2222',
-      avatar: 'ES',
-      ultimaMensagem: 'Excelente atendimento! Recomendo a todos. Muito satisfeito.',
-      horario: 'Ontem',
-      status: 'finalizado',
-      statusTexto: 'Finalizado',
-      online: false,
-      ativo: false
-    }
-  ]);
+  // Fechar menu de anexos ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuAnexosAberto && !event.target.closest('.attachment-container')) {
+        setMenuAnexosAberto(false);
+      }
+    };
 
-  // Mock de conversas para cada atendimento
-  const conversas = {
-    'ATD-2024-001': [
-      { tipo: 'cliente', mensagem: 'Olá, gostaria de informações sobre meu seguro de vida', horario: '14:25' },
-      { tipo: 'ia', mensagem: 'Olá! Sou a assistente virtual. Como posso ajudá-lo com seu seguro?', horario: '14:26' },
-      { tipo: 'cliente', mensagem: 'Preciso saber sobre a cobertura e valores', horario: '14:27' },
-      { tipo: 'ia', mensagem: 'Vou verificar os detalhes do seu seguro. Um momento...', horario: '14:28' },
-      { tipo: 'operador', mensagem: 'Olá João! Sou o operador Carlos. Seu seguro tem cobertura completa de R$ 100.000. Posso detalhar?', horario: '14:30' },
-      { tipo: 'cliente', mensagem: 'Sim, por favor. Quero entender melhor os benefícios', horario: '14:31' }
-    ],
-    'ATD-2024-002': [
-      { tipo: 'cliente', mensagem: 'Gostaria de saber sobre o status do meu seguro', horario: '13:45' },
-      { tipo: 'ia', mensagem: 'Olá Maria! Vou verificar o status do seu seguro.', horario: '13:46' },
-      { tipo: 'cliente', mensagem: 'Fiz o pagamento ontem, quando fica ativo?', horario: '13:47' },
-      { tipo: 'operador', mensagem: 'Olá Maria! Seu seguro já está ativo. O pagamento foi processado com sucesso.', horario: '13:50' },
-      { tipo: 'cliente', mensagem: 'Perfeito! Obrigada pelo esclarecimento', horario: '13:51' }
-    ],
-    'ATD-2024-003': [
-      { tipo: 'cliente', mensagem: 'Preciso de informações sobre crédito consignado', horario: '13:20' },
-      { tipo: 'ia', mensagem: 'Olá! Posso ajudá-lo com informações sobre crédito consignado.', horario: '13:21' },
-      { tipo: 'cliente', mensagem: 'Qual a taxa de juros atual?', horario: '13:22' },
-      { tipo: 'ia', mensagem: 'Conectando você com um especialista em crédito...', horario: '13:23' },
-      { tipo: 'operador', mensagem: 'Olá Ana Paula! As taxas variam de 1,2% a 2,1% ao mês. Posso simular para você?', horario: '13:25' }
-    ],
-    'ATD-2024-004': [
-      { tipo: 'cliente', mensagem: 'Bom dia! Gostaria de informações sobre precatório', horario: '11:15' },
-      { tipo: 'ia', mensagem: 'Bom dia! Posso ajudá-lo com informações sobre precatórios.', horario: '11:16' },
-      { tipo: 'cliente', mensagem: 'Tenho um precatório do INSS, vocês fazem antecipação?', horario: '11:17' },
-      { tipo: 'operador', mensagem: 'Sim Carlos! Fazemos antecipação de precatórios. Preciso de alguns dados para análise.', horario: '11:20' },
-      { tipo: 'cliente', mensagem: 'Que documentos preciso enviar?', horario: '11:21' }
-    ],
-    'ATD-2024-005': [
-      { tipo: 'cliente', mensagem: 'Meu seguro auto foi recusado. Podem verificar?', horario: '10:30' },
-      { tipo: 'ia', mensagem: 'Olá Fernanda! Vou verificar o motivo da recusa do seu seguro auto.', horario: '10:31' },
-      { tipo: 'cliente', mensagem: 'Não entendi o motivo, meu carro é novo', horario: '10:32' },
-      { tipo: 'operador', mensagem: 'Fernanda, verifiquei aqui. Foi um erro no sistema. Vou reprocessar sua solicitação.', horario: '10:35' },
-      { tipo: 'cliente', mensagem: 'Obrigada! Quando terei uma resposta?', horario: '10:36' },
-      { tipo: 'operador', mensagem: 'Em até 24 horas você receberá a aprovação por email.', horario: '10:37' }
-    ],
-    'ATD-2024-006': [
-      { tipo: 'cliente', mensagem: 'Preciso de reembolso do meu precatório urgente', horario: '09:45' },
-      { tipo: 'ia', mensagem: 'Olá Roberto! Entendo a urgência. Vou conectá-lo com um especialista.', horario: '09:46' },
-      { tipo: 'operador', mensagem: 'Roberto, analisei seu caso. O reembolso será processado em 2 dias úteis.', horario: '09:50' },
-      { tipo: 'cliente', mensagem: 'Preciso mais rápido, é uma emergência médica', horario: '09:51' },
-      { tipo: 'operador', mensagem: 'Entendo. Vou acelerar o processo. Será liberado ainda hoje.', horario: '09:52' },
-      { tipo: 'cliente', mensagem: 'Muito obrigado! Vocês salvaram minha vida', horario: '09:53' }
-    ],
-    'ATD-2024-007': [
-      { tipo: 'cliente', mensagem: 'Olá! Como faço para contratar crédito pessoal?', horario: '09:12' },
-      { tipo: 'ia', mensagem: 'Olá Juliana! Posso ajudá-la com o crédito pessoal. Qual valor precisa?', horario: '09:13' },
-      { tipo: 'cliente', mensagem: 'Preciso de R$ 15.000 para reformar minha casa', horario: '09:14' },
-      { tipo: 'operador', mensagem: 'Juliana, temos opções excelentes! Taxa a partir de 2,5% ao mês. Quer simular?', horario: '09:17' },
-      { tipo: 'cliente', mensagem: 'Sim, por favor! Qual documentação preciso?', horario: '09:18' }
-    ],
-    'ATD-2024-008': [
-      { tipo: 'cliente', mensagem: 'Problema resolvido, obrigada!', horario: '08:45' },
-      { tipo: 'operador', mensagem: 'Que bom Eduardo! Fico feliz em ter ajudado com seu seguro residencial.', horario: '08:46' },
-      { tipo: 'cliente', mensagem: 'O atendimento foi excelente, muito obrigado', horario: '08:47' },
-      { tipo: 'operador', mensagem: 'Obrigado pelo feedback! Estamos sempre à disposição.', horario: '08:48' }
-    ]
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuAnexosAberto]);
+
+  // useEffect para aplicar filtros quando os atendimentos mudarem
+  useEffect(() => {
+    if (atendimentos.length > 0) {
+      aplicarFiltroStatus(filtroStatus);
+    }
+  }, [atendimentos]);
+
+  // useEffect para aplicar filtros quando o termo de busca muda
+  useEffect(() => {
+    aplicarFiltroStatus(filtroStatus);
+  }, [termoBusca]);
+
+  const carregarAtendimentos = async () => {
+    try {
+      console.log('🔄 Iniciando carregamento de atendimentos...');
+      setLoading(true);
+      setError(null);
+      
+      if (!user?.email) {
+        console.log('❌ Usuário não logado ou email não disponível');
+        setError('Usuário não autenticado');
+        return;
+      }
+
+      // Buscar dados do operador logado pelo email
+      const operadorLogado = await buscarPorEmail(user.email);
+      if (!operadorLogado || !operadorLogado.id) {
+        console.log('❌ Operador não encontrado na base de dados');
+        setError('Operador não encontrado. Verifique seu cadastro.');
+        return;
+      }
+
+      console.log('👤 OPERADOR LOGADO ENCONTRADO:');
+      console.log('   - Nome:', operadorLogado.nome);
+      console.log('   - Email:', operadorLogado.email);
+      console.log('   - ID:', operadorLogado.id);
+      console.log('   - Perfil:', operadorLogado.perfil);
+      console.log('   - Habilitado:', operadorLogado.habilitado);
+
+      // Verificar se é admin
+      const userIsAdmin = operadorLogado.perfil && operadorLogado.perfil.toLowerCase() === 'admin';
+      setIsAdmin(userIsAdmin);
+
+      let dados;
+      if (userIsAdmin) {
+        console.log('🔍 ADMIN DETECTADO - CARREGANDO TODOS OS ATENDIMENTOS:');
+        // Se for admin, carregar todos os atendimentos
+        dados = await atendimentosService.buscarTodos();
+        console.log('📊 ADMIN - Total de atendimentos encontrados:', dados.length);
+      } else {
+        console.log('🔍 OPERADOR - CARREGANDO ATENDIMENTOS DO OPERADOR:');
+        console.log('   - Operador ID para filtro:', operadorLogado.id);
+        // Se for operador, carregar apenas os atendimentos do operador
+        dados = await atendimentosService.buscarPorOperador(operadorLogado.id);
+        console.log('📊 OPERADOR - Total de atendimentos encontrados:', dados.length);
+      }
+      
+      console.log('📊 RESULTADO DA BUSCA DE ATENDIMENTOS:');
+      console.log('   - Total encontrado:', dados.length);
+      console.log('   - Tipo de usuário:', userIsAdmin ? 'Admin' : 'Operador');
+      
+      if (dados.length === 0) {
+        console.log('⚠️ NENHUM ATENDIMENTO ENCONTRADO!');
+        if (!userIsAdmin) {
+          console.log('   - Possíveis causas:');
+          console.log('     1. Operador não tem atendimentos atribuídos');
+          console.log('     2. Atendimentos não estão nos status corretos');
+          console.log('     3. Problema na query de busca');
+        }
+      }
+      setAtendimentos(dados);
+      setAtendimentosFiltrados(dados); // Inicialmente, sem filtro
+      
+      // Carregar nomes dos operadores e categorias para os atendimentos
+      await carregarNomesOperadores(dados);
+      await carregarNomesCategorias(dados);
+    } catch (err) {
+      console.error('❌ Erro ao carregar atendimentos:', err);
+      console.error('📋 Detalhes do erro:', err.message);
+      setError('Erro ao carregar atendimentos. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const carregarNovosAtendimentos = async () => {
+    try {
+      console.log('🔄 Iniciando carregamento de novos atendimentos...');
+      const novos = await atendimentosService.buscarNovosAtendimentos();
+      console.log('✅ Novos atendimentos carregados:', novos);
+      console.log('📊 Total de novos atendimentos:', novos.length);
+      setNovosAtendimentos(novos);
+    } catch (err) {
+      console.error('❌ Erro ao carregar novos atendimentos:', err);
+      console.error('📋 Detalhes do erro:', err.message);
+    }
+  };
+
+  // Carregar nomes dos operadores baseado nos IDs dos atendimentos
+  const carregarNomesOperadores = async (atendimentosList) => {
+    try {
+      const operadoresIds = [...new Set(atendimentosList
+        .filter(atendimento => atendimento.operador_id)
+        .map(atendimento => atendimento.operador_id)
+      )];
+      
+      console.log('🔄 Carregando nomes dos operadores para IDs:', operadoresIds);
+      
+      const nomesOperadores = {};
+      
+      for (const operadorId of operadoresIds) {
+        try {
+          const operador = await buscarPorId(operadorId);
+          if (operador && operador.nome) {
+            nomesOperadores[operadorId] = operador.nome;
+            console.log(`✅ Operador ${operadorId}: ${operador.nome}`);
+          }
+        } catch (err) {
+          console.error(`❌ Erro ao buscar operador ${operadorId}:`, err);
+          nomesOperadores[operadorId] = 'Sem operador atribuído';
+        }
+      }
+      
+      setOperadoresNomes(nomesOperadores);
+      console.log('✅ Nomes dos operadores carregados:', nomesOperadores);
+    } catch (err) {
+      console.error('❌ Erro ao carregar nomes dos operadores:', err);
+    }
+  };
+
+  // Função para filtrar atendimentos por status (apenas para Admin)
+  const aplicarFiltroStatus = async (status) => {
+    setFiltroStatus(status);
+    
+    try {
+      let atendimentosPorStatus;
+      
+      if (status === 'todos') {
+        // Se for "todos", usar os atendimentos já carregados
+        atendimentosPorStatus = atendimentos;
+        console.log(`🔍 [Admin] Filtro "todos" - usando atendimentos já carregados: ${atendimentosPorStatus.length}`);
+      } else {
+        // Se for um status específico, buscar diretamente do banco
+        console.log(`🔍 [Admin] Buscando atendimentos com status específico: ${status}`);
+        atendimentosPorStatus = await atendimentosService.buscarPorStatusAdmin(status);
+        console.log(`📊 [Admin] Atendimentos encontrados com status "${status}": ${atendimentosPorStatus.length}`);
+      }
+      
+      // Depois aplicar filtro de busca
+      const atendimentosFinais = filtrarPorBusca(atendimentosPorStatus);
+      setAtendimentosFiltrados(atendimentosFinais);
+      
+      console.log(`🔍 [Admin] Filtro aplicado: ${status}`);
+      console.log(`📊 [Admin] Atendimentos após filtro de status: ${atendimentosPorStatus.length}`);
+      console.log(`📊 [Admin] Atendimentos após filtro de busca: ${atendimentosFinais.length}`);
+    } catch (error) {
+      console.error('❌ [Admin] Erro ao aplicar filtro de status:', error);
+      // Em caso de erro, usar filtro local como fallback
+      const atendimentosPorStatus = status === 'todos' 
+        ? atendimentos 
+        : atendimentos.filter(atendimento => atendimento.status === status);
+      const atendimentosFinais = filtrarPorBusca(atendimentosPorStatus);
+      setAtendimentosFiltrados(atendimentosFinais);
+    }
+  };
+
+  // Carregar nomes das categorias baseado nos IDs dos atendimentos
+   const carregarNomesCategorias = async (atendimentosList) => {
+     try {
+       const categoriasIds = [...new Set(atendimentosList
+         .filter(atendimento => atendimento.categoria_id)
+         .map(atendimento => atendimento.categoria_id)
+       )];
+       
+       console.log('🔄 Carregando nomes das categorias para IDs:', categoriasIds);
+       
+       const nomesCategorias = {};
+       
+       for (const categoriaId of categoriasIds) {
+         try {
+           const categoria = await categoriasService.buscarPorId(categoriaId);
+           if (categoria && categoria.nome) {
+             nomesCategorias[categoriaId] = categoria.nome;
+             console.log(`✅ Categoria ${categoriaId}: ${categoria.nome}`);
+           }
+         } catch (err) {
+           console.error(`❌ Erro ao buscar categoria ${categoriaId}:`, err);
+           nomesCategorias[categoriaId] = 'Categoria não encontrada';
+         }
+       }
+       
+       setCategoriasNomes(nomesCategorias);
+       console.log('✅ Nomes das categorias carregados:', nomesCategorias);
+     } catch (err) {
+       console.error('❌ Erro ao carregar nomes das categorias:', err);
+     }
+   };
+
+   // Carregar observações de um atendimento
+    const carregarObservacoes = async (atendimentoId) => {
+      try {
+        setCarregandoObservacoes(true);
+        console.log('🔄 Carregando observações para atendimento:', atendimentoId);
+        
+        const observacoesData = await observacoesService.listarPorAtendimento(atendimentoId);
+        setObservacoes(observacoesData);
+        
+        console.log('✅ Observações carregadas:', observacoesData);
+      } catch (error) {
+        console.error('❌ Erro ao carregar observações:', error);
+        setObservacoes([]);
+      } finally {
+        setCarregandoObservacoes(false);
+      }
+    };
+
+    // Adicionar nova observação
+    const adicionarObservacao = async () => {
+      if (!novaObservacao.trim() || !atendimentoSelecionado || !user) {
+        return;
+      }
+
+      try {
+        console.log('🔄 Adicionando nova observação...');
+        
+        // Buscar o operador pelo email do usuário logado
+        const operador = await buscarPorEmail(user.email);
+        if (!operador) {
+          console.error('❌ Operador não encontrado');
+          return;
+        }
+
+        const observacaoData = {
+          id_atendimento: atendimentoSelecionado.id,
+          observacao: novaObservacao.trim(),
+          operador_id: operador.id
+        };
+
+        const novaObservacaoSalva = await observacoesService.criar(observacaoData);
+        
+        // Atualizar lista de observações
+        setObservacoes(prev => [novaObservacaoSalva, ...prev]);
+        setNovaObservacao('');
+        
+        console.log('✅ Observação adicionada:', novaObservacaoSalva);
+      } catch (error) {
+        console.error('❌ Erro ao adicionar observação:', error);
+      }
+    };
+
+    // Função para lidar com Enter no textarea
+    const handleObservacaoKeyPress = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        adicionarObservacao();
+      }
+    };
+
+  // Carregar mensagens de um atendimento
+  const carregarMensagens = async (atendimentoId) => {
+    try {
+      console.log('🔄 Carregando mensagens do atendimento:', atendimentoId);
+      const mensagens = await mensagensService.buscarPorAtendimento(atendimentoId);
+      console.log('✅ Mensagens carregadas:', mensagens);
+      
+      // Atualizar o estado de mensagens
+      setMensagens(prev => ({
+          ...prev,
+          [atendimentoId]: mensagens
+        }));
+      
+      return mensagens;
+    } catch (err) {
+      console.error('❌ Erro ao carregar mensagens:', err);
+      console.error('📋 Detalhes do erro:', err.message);
+      return [];
+    }
+  };
+
+  // Função para enviar mensagem
+  const enviarMensagem = async () => {
+    if (!mensagemInput.trim() || !atendimentoSelecionado || enviandoMensagem) {
+      return;
+    }
+
+    try {
+      setEnviandoMensagem(true);
+      console.log('📤 Enviando mensagem:', {
+        atendimento_id: atendimentoSelecionado.id,
+        conteudo: mensagemInput.trim(),
+        role: 'operador',
+        remetente_id: atendimentoSelecionado.telefone
+      });
+
+      // Criar mensagem no banco
+      const novaMensagem = await mensagensService.criar({
+        atendimento_id: atendimentoSelecionado.id,
+        conteudo: mensagemInput.trim(),
+        role: 'operador',
+        remetente_id: atendimentoSelecionado.telefone
+      });
+
+      console.log('✅ Mensagem criada:', novaMensagem);
+
+      // Enviar mensagem via WhatsApp através da EVO
+      try {
+        await mensagensService.enviarViaWhatsApp(
+          atendimentoSelecionado.telefone,
+          mensagemInput.trim()
+        );
+        console.log('✅ Mensagem enviada via WhatsApp');
+      } catch (whatsappError) {
+        console.error('❌ Erro ao enviar via WhatsApp:', whatsappError);
+        // Não bloquear o fluxo se o WhatsApp falhar
+      }
+
+      // Limpar input
+      setMensagemInput('');
+
+      // Recarregar mensagens para atualizar a conversa
+      await carregarMensagens(atendimentoSelecionado.id);
+
+    } catch (error) {
+      console.error('❌ Erro ao enviar mensagem:', error);
+      alert('Erro ao enviar mensagem. Tente novamente.');
+    } finally {
+      setEnviandoMensagem(false);
+    }
+  };
+
+  // Função para lidar com Enter no input
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      enviarMensagem();
+    }
+  };
+
+  // useEffect para carregar mensagens quando um atendimento for selecionado
+  useEffect(() => {
+    if (atendimentoSelecionado && atendimentoSelecionado.id) {
+      carregarMensagens(atendimentoSelecionado.id);
+    }
+  }, [atendimentoSelecionado]);
+
+  // Função para scroll automático
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // useEffect para scroll automático quando mensagens mudarem
+  useEffect(() => {
+    if (atendimentoSelecionado && mensagens[atendimentoSelecionado.id]) {
+      scrollToBottom();
+    }
+  }, [mensagens, atendimentoSelecionado]);
+
+  // useEffect para polling automático de mensagens (tempo real)
+  useEffect(() => {
+    let intervalId;
+    
+    if (atendimentoSelecionado && atendimentoSelecionado.id && atendimentoHabilitado) {
+      // Função para verificar novas mensagens
+      const verificarNovasMensagens = async () => {
+        try {
+          const mensagensAtuais = await mensagensService.buscarPorAtendimento(atendimentoSelecionado.id);
+          const mensagensExistentes = mensagens[atendimentoSelecionado.id] || [];
+          
+          // Verificar se há novas mensagens comparando o tamanho dos arrays
+           if (mensagensAtuais.length > mensagensExistentes.length) {
+             console.log('🔔 Novas mensagens detectadas:', mensagensAtuais.length - mensagensExistentes.length);
+             
+             // Atualizar o estado de mensagens
+             setMensagens(prev => ({
+               ...prev,
+               [atendimentoSelecionado.id]: mensagensAtuais
+             }));
+             
+             // Marcar atendimento como tendo novas mensagens (apenas se não estiver selecionado)
+             // Se o atendimento atual não estiver em foco, marcar como tendo novas mensagens
+             setAtendimentosComNovasMensagens(prev => {
+               const newSet = new Set(prev);
+               newSet.add(atendimentoSelecionado.id);
+               return newSet;
+             });
+           }
+        } catch (err) {
+          console.error('❌ Erro ao verificar novas mensagens:', err);
+        }
+      };
+      
+      // Configurar polling a cada 5 segundos
+      intervalId = setInterval(verificarNovasMensagens, 5000);
+      
+      console.log('🔄 Polling de mensagens iniciado para atendimento:', atendimentoSelecionado.id);
+    }
+    
+    // Cleanup: limpar o intervalo quando o componente for desmontado ou atendimento mudar
+     return () => {
+       if (intervalId) {
+         clearInterval(intervalId);
+         console.log('⏹️ Polling de mensagens interrompido');
+       }
+     };
+   }, [atendimentoSelecionado, atendimentoHabilitado, mensagens]);
+
+
 
   // Função para selecionar atendimento
   const selecionarAtendimento = (atendimento) => {
     setAtendimentoSelecionado(atendimento);
+    
+    // Remover indicador de novas mensagens para este atendimento
+    setAtendimentosComNovasMensagens(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(atendimento.id);
+      return newSet;
+    });
   };
 
   // Função para salvar novo nome do cliente
-  const salvarNomeCliente = () => {
+  const salvarNomeCliente = async () => {
     if (novoNomeCliente.trim() && atendimentoSelecionado) {
-      console.log('Alterando nome do cliente', atendimentoSelecionado.id, 'para', novoNomeCliente);
-      // Aqui seria a lógica para salvar o novo nome na API
-      // Por enquanto, vamos atualizar localmente
-      setAtendimentoSelecionado({
-        ...atendimentoSelecionado,
-        nome: novoNomeCliente
-      });
-      setModalEditarNome(false);
-      setNovoNomeCliente('');
+      try {
+        console.log('Alterando nome do cliente', atendimentoSelecionado.id, 'para', novoNomeCliente);
+        
+        // Atualizar nome do cliente na tabela atendimentos
+        await atendimentosService.atualizarNomeCliente(atendimentoSelecionado.id, novoNomeCliente);
+        
+        // Atualizar estado local
+        setAtendimentoSelecionado({
+          ...atendimentoSelecionado,
+          nome: novoNomeCliente
+        });
+        
+        // Atualizar lista de atendimentos
+        setAtendimentos(prevAtendimentos => 
+          prevAtendimentos.map(atendimento => 
+            atendimento.id === atendimentoSelecionado.id 
+              ? { ...atendimento, nome: novoNomeCliente }
+              : atendimento
+          )
+        );
+        
+        setModalEditarNome(false);
+        setNovoNomeCliente('');
+        
+        console.log('✅ Nome do cliente atualizado com sucesso');
+      } catch (error) {
+        console.error('❌ Erro ao salvar nome do cliente:', error);
+        alert('Erro ao salvar o nome do cliente. Tente novamente.');
+      }
+    }
+  };
+
+  // Função para salvar novo email do cliente
+  const salvarNovoEmail = async () => {
+    if (novoEmail.trim() && atendimentoSelecionado) {
+      try {
+        console.log('Alterando email do cliente', atendimentoSelecionado.id, 'para', novoEmail);
+        
+        // Atualizar email do cliente na tabela atendimentos
+        await atendimentosService.atualizarEmailCliente(atendimentoSelecionado.id, novoEmail.trim());
+        
+        // Atualizar estado local
+        setAtendimentoSelecionado({
+          ...atendimentoSelecionado,
+          email: novoEmail.trim()
+        });
+        
+        // Atualizar lista de atendimentos
+        setAtendimentos(prevAtendimentos => 
+          prevAtendimentos.map(atendimento => 
+            atendimento.id === atendimentoSelecionado.id 
+              ? { ...atendimento, email: novoEmail.trim() }
+              : atendimento
+          )
+        );
+        
+        setModalEditarEmail(false);
+        setNovoEmail('');
+        
+        console.log('✅ Email do cliente atualizado com sucesso');
+      } catch (error) {
+        console.error('❌ Erro ao salvar email do cliente:', error);
+        alert('Erro ao salvar o email do cliente. Tente novamente.');
+      }
     }
   };
 
@@ -258,58 +690,288 @@ const Dashboard = () => {
     setNovoNomeCliente('');
   };
 
-  // Função para filtrar atendimentos
-  const atendimentosFiltrados = atendimentos.filter(atendimento => {
-    // Filtro por status
-    const passaFiltroStatus = filtroStatus === 'todos' || atendimento.status === filtroStatus;
+  // Função para cancelar edição de email
+  const cancelarEdicaoEmail = () => {
+    setModalEditarEmail(false);
+    setNovoEmail('');
+  };
 
-    // Filtro por busca de texto
-    const passaFiltroBusca = !termoBusca || (() => {
-      const termo = termoBusca.toLowerCase();
-      return (
-        atendimento.id.toLowerCase().includes(termo) ||
-        atendimento.nome.toLowerCase().includes(termo) ||
-        atendimento.telefone.toLowerCase().includes(termo) ||
-        atendimento.status.toLowerCase().includes(termo) ||
-        atendimento.statusTexto.toLowerCase().includes(termo)
-      );
-    })();
+  // Funções para menu de anexos
+  const toggleMenuAnexos = () => {
+    setMenuAnexosAberto(!menuAnexosAberto);
+  };
 
-    return passaFiltroStatus && passaFiltroBusca;
-  });
+  const fecharMenuAnexos = () => {
+    setMenuAnexosAberto(false);
+  };
 
-  // Verificar status de habilitação no banco de dados quando o usuário fizer login
+  const handleAnexarFoto = () => {
+    console.log('📸 Anexar foto/imagem');
+    
+    if (!atendimentoSelecionado) {
+      alert('Selecione um atendimento primeiro.');
+      return;
+    }
+    
+    // Criar input file invisível para imagens compatíveis com WhatsApp
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.jpg,.jpeg,.png,.gif,.webp';
+    input.style.display = 'none';
+    
+    input.onchange = async (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        try {
+          console.log('📸 Imagem selecionada:', file.name);
+          
+          // Garantir que o bucket existe
+          await createBucketIfNotExists();
+          
+          // Fazer upload da imagem para o Supabase Storage
+          const uploadResult = await uploadFile(file, 'images', atendimentoSelecionado.id);
+          
+          if (!uploadResult.success) {
+            throw new Error('Erro ao fazer upload da imagem');
+          }
+          
+          console.log('✅ Upload da imagem realizado com sucesso:', uploadResult.url);
+          
+          // Salvar mensagem no banco de dados
+          const novaMensagem = {
+            atendimento_id: atendimentoSelecionado.id,
+            operador_id: user.id,
+            remetente_id: atendimentoSelecionado.telefone, // Número de telefone do cliente
+            conteudo: uploadResult.url, // URL da imagem no storage
+            type: 'photo',
+            document_name: uploadResult.fileName,
+            file_size: uploadResult.fileSize,
+            file_type: uploadResult.fileType
+          };
+          
+          const mensagemSalva = await mensagensService.criar(novaMensagem);
+          
+          if (mensagemSalva) {
+            console.log('✅ Mensagem de imagem salva no banco:', mensagemSalva);
+            
+            // Enviar imagem via WhatsApp através da EVO
+            try {
+              await mensagensService.enviarDocumentoViaWhatsApp(
+                atendimentoSelecionado.telefone,
+                uploadResult.url,
+                atendimentoSelecionado.id,
+                uploadResult.fileName
+              );
+              console.log('✅ Imagem enviada via WhatsApp');
+            } catch (whatsappError) {
+              console.error('❌ Erro ao enviar imagem via WhatsApp:', whatsappError);
+              // Não bloquear o fluxo se o WhatsApp falhar
+            }
+            
+            // Enviar imagem via webhook (convertida para base64)
+            try {
+              await mensagensService.enviarImagemViaWebhook(
+                atendimentoSelecionado.telefone,
+                file,
+                atendimentoSelecionado.id,
+                uploadResult.fileName,
+                uploadResult.fileSize,
+                uploadResult.fileType
+              );
+              console.log('✅ Imagem enviada via webhook (base64)');
+            } catch (webhookError) {
+              console.error('❌ Erro ao enviar imagem via webhook:', webhookError);
+              // Não bloquear o fluxo se o webhook falhar
+            }
+            
+            alert('Imagem enviada com sucesso!');
+            
+            // Recarregar mensagens para mostrar a nova imagem
+            await carregarMensagens(atendimentoSelecionado.id);
+          } else {
+            throw new Error('Erro ao salvar mensagem no banco');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao processar imagem:', error);
+          alert('Erro ao processar a imagem. Tente novamente.');
+        }
+      }
+    };
+    
+    // Adicionar ao DOM e clicar
+    document.body.appendChild(input);
+    input.click();
+    
+    // Remover do DOM após uso
+    setTimeout(() => {
+      document.body.removeChild(input);
+    }, 1000);
+    
+    fecharMenuAnexos();
+  };
+
+  const handleAnexarVideo = () => {
+    console.log('🎥 Anexar vídeo');
+    // Implementar lógica para anexar vídeo
+    fecharMenuAnexos();
+  };
+
+  const handleAnexarDocumento = () => {
+    console.log('📄 Anexar documento');
+    
+    if (!atendimentoSelecionado) {
+      alert('Selecione um atendimento primeiro.');
+      return;
+    }
+    
+    // Criar input file invisível para documentos
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.zip,.rar';
+    input.style.display = 'none';
+    
+    input.onchange = async (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        try {
+          console.log('📄 Arquivo selecionado:', file.name);
+          
+          // Garantir que o bucket existe
+          await createBucketIfNotExists();
+          
+          // Determinar o tipo de arquivo (document ou image)
+          const isImage = file.type.startsWith('image/');
+          const fileType = isImage ? 'images' : 'documents';
+          const messageType = isImage ? 'photo' : 'document';
+          
+          // Fazer upload do arquivo para o Supabase Storage
+          const uploadResult = await uploadFile(file, fileType, atendimentoSelecionado.id);
+          
+          if (!uploadResult.success) {
+            throw new Error('Erro ao fazer upload do arquivo');
+          }
+          
+          console.log('✅ Upload realizado com sucesso:', uploadResult.url);
+          
+          // Salvar mensagem no banco de dados
+          const novaMensagem = {
+            atendimento_id: atendimentoSelecionado.id,
+            operador_id: user.id,
+            remetente_id: atendimentoSelecionado.telefone, // Número de telefone do cliente
+            conteudo: uploadResult.url, // URL do arquivo no storage
+            type: messageType, // 'document' ou 'photo'
+            document_name: uploadResult.fileName,
+            file_size: uploadResult.fileSize,
+            file_type: uploadResult.fileType
+          };
+          
+          const mensagemSalva = await mensagensService.criar(novaMensagem);
+          
+          if (mensagemSalva) {
+            console.log('✅ Mensagem salva no banco:', mensagemSalva);
+            
+            // Enviar documento via WhatsApp através da EVO
+            try {
+              await mensagensService.enviarDocumentoViaWhatsApp(
+                atendimentoSelecionado.telefone,
+                uploadResult.url,
+                atendimentoSelecionado.id,
+                uploadResult.fileName
+              );
+              console.log('✅ Documento enviado via WhatsApp');
+            } catch (whatsappError) {
+              console.error('❌ Erro ao enviar documento via WhatsApp:', whatsappError);
+              // Não bloquear o fluxo se o WhatsApp falhar
+            }
+            
+            // Enviar documento via webhook específico
+            try {
+              await mensagensService.enviarDocumentoViaWebhook(
+                atendimentoSelecionado.telefone,
+                uploadResult.url,
+                atendimentoSelecionado.id,
+                uploadResult.fileName,
+                uploadResult.fileSize,
+                uploadResult.fileType
+              );
+              console.log('✅ Documento enviado via webhook');
+            } catch (webhookError) {
+              console.error('❌ Erro ao enviar documento via webhook:', webhookError);
+              // Não bloquear o fluxo se o webhook falhar
+            }
+            
+            alert(`${isImage ? 'Imagem' : 'Documento'} enviado com sucesso!`);
+            
+            // Recarregar mensagens para mostrar o novo arquivo
+            await carregarMensagens(atendimentoSelecionado.id);
+          } else {
+            throw new Error('Erro ao salvar mensagem no banco');
+          }
+          
+        } catch (error) {
+          console.error('❌ Erro ao processar documento:', error);
+          alert('Erro ao processar o arquivo. Tente novamente.');
+        }
+      }
+    };
+    
+    // Adicionar ao DOM e clicar
+    document.body.appendChild(input);
+    input.click();
+    
+    // Remover do DOM após uso
+    setTimeout(() => {
+      document.body.removeChild(input);
+    }, 1000);
+    
+    fecharMenuAnexos();
+  };
+  
+
+
+
+
+  const abrirModalInformacoes = (atendimento) => {
+    console.log('🔍 Dados do atendimento selecionado:', atendimento);
+    console.log('📝 Descrição do atendimento:', atendimento.descricao);
+    setAtendimentoSelecionado(atendimento);
+    setModalInformacoes(true);
+    
+    // Carregar observações do atendimento
+    carregarObservacoes(atendimento.id);
+  };
+
+  const fecharModalInformacoes = () => {
+    setModalInformacoes(false);
+  };
+
+  // Filtrar por termo de busca (integrado com filtros de status)
+  const filtrarPorBusca = (atendimentosParaFiltrar) => {
+    if (!termoBusca) return atendimentosParaFiltrar;
+    
+    const termo = termoBusca.toLowerCase();
+    return atendimentosParaFiltrar.filter(atendimento =>
+      (atendimento.codigo && atendimento.codigo.toString().toLowerCase().includes(termo)) ||
+      (atendimento.nome && atendimento.nome.toLowerCase().includes(termo)) ||
+      (atendimento.telefone && atendimento.telefone.toLowerCase().includes(termo)) ||
+      (atendimento.status && atendimento.status.toLowerCase().includes(termo))
+    );
+  };
+
+  // Verificar status de habilitação no banco de dados
   useEffect(() => {
     const verificarHabilitacaoOperador = async () => {
       if (user?.email) {
         try {
-          console.log('🔄 [Dashboard] Verificando status de habilitação para:', user.email);
-          
-          // Buscar operador no banco de dados
           const operador = await buscarPorEmail(user.email);
-          
           if (operador) {
-            console.log('✅ [Dashboard] Operador encontrado:', {
-              id: operador.id,
-              nome: operador.nome,
-              email: operador.email,
-              habilitado: operador.habilitado
-            });
-            
-            // Definir status de habilitação baseado no banco de dados
             setAtendimentoHabilitado(operador.habilitado === true);
-            
-            if (operador.habilitado === true) {
-              console.log('✅ [Dashboard] Atendimentos liberados automaticamente');
-            } else {
-              console.log('⚠️ [Dashboard] Atendimentos bloqueados - operador não habilitado');
-            }
           } else {
-            console.log('❌ [Dashboard] Operador não encontrado no banco de dados');
             setAtendimentoHabilitado(false);
           }
         } catch (error) {
-          console.error('❌ [Dashboard] Erro ao verificar habilitação do operador:', error);
+          console.error('Erro ao verificar habilitação do operador:', error);
           setAtendimentoHabilitado(false);
         }
       } else {
@@ -335,12 +997,11 @@ const Dashboard = () => {
       const intervalo = setInterval(() => {
         setTempoRestante(prev => {
           if (prev <= 1) {
-            // Tempo esgotado - desconectar usuário
             setAtendimentoHabilitado(false);
             setAtendimentoPausado(false);
             setModalConfirmacao(false);
             alert('Tempo esgotado! Você foi desconectado e precisará se habilitar novamente.');
-            return 40 * 60; // Reset para 40 minutos
+            return 40 * 60;
           }
           return prev - 1;
         });
@@ -351,30 +1012,20 @@ const Dashboard = () => {
     }
   }, [atendimentoPausado]);
 
-  // Função para gerar senha aleatória de 6 caracteres (garantindo pelo menos 1 letra e 1 número)
+  // Função para gerar senha aleatória
   const gerarSenhaAleatoria = () => {
     const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const numeros = '0123456789';
     const todosCaracteres = letras + numeros;
-
     let senha = '';
-
-    // Garantir pelo menos 1 letra
     senha += letras.charAt(Math.floor(Math.random() * letras.length));
-
-    // Garantir pelo menos 1 número
     senha += numeros.charAt(Math.floor(Math.random() * numeros.length));
-
-    // Completar com 4 caracteres aleatórios
     for (let i = 2; i < 6; i++) {
       senha += todosCaracteres.charAt(Math.floor(Math.random() * todosCaracteres.length));
     }
-
-    // Embaralhar a senha para não ter padrão fixo
     return senha.split('').sort(() => Math.random() - 0.5).join('');
   };
 
-  // Função para abrir modal de habilitação
   const abrirModalHabilitacao = () => {
     const novaSenha = gerarSenhaAleatoria();
     setSenhaGerada(novaSenha);
@@ -382,7 +1033,6 @@ const Dashboard = () => {
     setModalHabilitacao(true);
   };
 
-  // Função para fechar modal de habilitação
   const fecharModalHabilitacao = () => {
     setModalHabilitacao(false);
     setSenhaGerada('');
@@ -390,14 +1040,11 @@ const Dashboard = () => {
     setVerificandoSenha(false);
   };
 
-  // Função para atualizar senha digitada
   const atualizarSenhaDigitada = (index, valor) => {
     if (valor.length <= 1 && /^[A-Z0-9]*$/.test(valor.toUpperCase())) {
       const novaSenha = [...senhaDigitada];
       novaSenha[index] = valor.toUpperCase();
       setSenhaDigitada(novaSenha);
-
-      // Focar no próximo campo se não for o último
       if (valor && index < 5) {
         const proximoCampo = document.getElementById(`senha-${index + 1}`);
         if (proximoCampo) proximoCampo.focus();
@@ -405,200 +1052,76 @@ const Dashboard = () => {
     }
   };
 
-  // Função para verificar senha e habilitar atendimento
   const verificarSenha = async () => {
     const senhaCompleta = senhaDigitada.join('');
-
-    console.log('🔐 [Dashboard] Iniciando verificação de senha');
-    console.log('🔐 [Dashboard] Usuário logado:', user?.email);
-    console.log('🔐 [Dashboard] Senha digitada:', senhaCompleta);
-    console.log('🔐 [Dashboard] Senha gerada:', senhaGerada);
-
     if (senhaCompleta.length !== 6) {
-      console.log('❌ [Dashboard] Senha incompleta, apenas', senhaCompleta.length, 'caracteres');
       alert('Por favor, digite todos os 6 caracteres da senha.');
       return;
     }
-
-    if (!user?.email) {
-      console.log('❌ [Dashboard] Usuário não encontrado ou email não disponível');
-      alert('Erro: usuário não identificado. Faça login novamente.');
+    if (senhaCompleta !== senhaGerada) {
+      alert('Senha incorreta. Tente novamente.');
+      setSenhaDigitada(['', '', '', '', '', '']);
       return;
     }
-
     setVerificandoSenha(true);
-    console.log('🔄 [Dashboard] Iniciando processo de validação...');
-
     try {
-      // Validar senha e habilitar atendimento via SQL
       const resultado = await validarSenhaEHabilitar(user.email, senhaCompleta, senhaGerada);
-      
-      console.log('✅ [Dashboard] Validação bem-sucedida:', resultado);
-      
-      // Atualizar estado local
-      setAtendimentoHabilitado(true);
-      
-      // Exibir mensagem de sucesso
-      alert(resultado.mensagem || 'Atendimento habilitado com sucesso!');
-      
-      // Fechar modal
-      fecharModalHabilitacao();
-      
-      console.log('✅ [Dashboard] Atendimento habilitado e modal fechada');
-      
-    } catch (error) {
-      console.error('❌ [Dashboard] Erro na validação:', error);
-      
-      let mensagemErro = 'Erro ao verificar senha. Tente novamente.';
-      
-      if (error.message === 'Senha incorreta') {
-        mensagemErro = 'Senha incorreta. Tente novamente.';
-        console.log('🔄 [Dashboard] Limpando campos de senha para nova tentativa');
-        setSenhaDigitada(['', '', '', '', '', '']);
-        // Focar no primeiro campo
-        setTimeout(() => {
-          const primeiroCampo = document.getElementById('senha-0');
-          if (primeiroCampo) primeiroCampo.focus();
-        }, 100);
-      } else if (error.message === 'Operador não encontrado') {
-        mensagemErro = 'Operador não encontrado no sistema.';
+      if (resultado.sucesso) {
+        setAtendimentoHabilitado(true);
+        setModalHabilitacao(false);
+        alert('Atendimentos habilitados com sucesso!');
+      } else {
+        alert(resultado.mensagem || 'Erro ao habilitar atendimentos.');
       }
-      // Removido tratamento para 'Operador inativo' - status será verificado no login
-      
-      alert(mensagemErro);
-      
+    } catch (error) {
+      console.error('Erro ao verificar senha:', error);
+      alert('Erro interno. Tente novamente.');
     } finally {
       setVerificandoSenha(false);
-      console.log('🔄 [Dashboard] Processo de verificação finalizado');
     }
   };
 
-  // Função para pausar atendimentos
   const pausarAtendimentos = () => {
     setAtendimentoPausado(true);
-    setTempoRestante(40 * 60); // Reset para 40 minutos
+    setModalConfirmacao(true);
   };
 
-  // Função para abrir modal de confirmação
   const abrirModalConfirmacao = () => {
     setModalConfirmacao(true);
   };
 
-  // Função para retomar atendimentos
   const retomarAtendimentos = () => {
     setAtendimentoPausado(false);
     setModalConfirmacao(false);
+    setTempoRestante(40 * 60);
     if (intervaloPausa) {
       clearInterval(intervaloPausa);
       setIntervaloPausa(null);
     }
   };
 
-  // Função para fechar modal de confirmação
   const fecharModalConfirmacao = () => {
     setModalConfirmacao(false);
   };
 
-  // Função para testar listagem de operadores (debug)
-  const testarListagemOperadores = async () => {
-    try {
-      console.log('🔄 [Dashboard] Testando listagem de operadores...');
-      const operadores = await listarTodosOperadores();
-      console.log('✅ [Dashboard] Listagem concluída:', operadores);
-      return operadores;
-    } catch (error) {
-      console.error('❌ [Dashboard] Erro ao listar operadores:', error);
-      throw error;
-    }
-  };
-
-  // Expor função para console (debug)
-  React.useEffect(() => {
-    window.testarListagemOperadores = testarListagemOperadores;
-    return () => {
-      delete window.testarListagemOperadores;
-    };
-  }, []);
-
-  // Função para formatar tempo em MM:SS
   const formatarTempo = (segundos) => {
     const minutos = Math.floor(segundos / 60);
     const segs = segundos % 60;
     return `${minutos.toString().padStart(2, '0')}:${segs.toString().padStart(2, '0')}`;
   };
 
-  // Função para abrir modal de novo atendimento
-  const abrirModalNovoAtendimento = () => {
-    // Seleciona um atendimento aleatório dos mocks
-    const atendimentoAleatorio = novosAtendimentosMock[Math.floor(Math.random() * novosAtendimentosMock.length)];
-    setNovoAtendimentoData(atendimentoAleatorio);
-    setModalNovoAtendimento(true);
-    setTempoRestanteAceitar(45);
 
-    // Inicia o timer
-    const interval = setInterval(() => {
-      setTempoRestanteAceitar(prev => {
-        if (prev <= 1) {
-          // Tempo esgotado - fecha a modal
-          setModalNovoAtendimento(false);
-          setNovoAtendimentoData(null);
-          clearInterval(interval);
-          setIntervalAceitar(null);
-          return 45;
-        }
-        return prev - 1;
-      });
-    }, 1000);
 
-    setIntervalAceitar(interval);
-  };
-
-  // Função para aceitar o atendimento
-  const aceitarAtendimento = () => {
-    if (novoAtendimentoData) {
-      // Adiciona o novo atendimento à lista
-      setAtendimentos(prev => [novoAtendimentoData, ...prev]);
-
-      // Fecha a modal
-      setModalNovoAtendimento(false);
-      setNovoAtendimentoData(null);
-
-      // Para o timer
-      if (intervalAceitar) {
-        clearInterval(intervalAceitar);
-        setIntervalAceitar(null);
-      }
-
-      setTempoRestanteAceitar(45);
-    }
-  };
-
-  // Função para adicionar nova observação
-  const adicionarObservacao = () => {
-    if (novaObservacao.trim()) {
-      const novaObs = {
-        id: observacoes.length + 1,
-        texto: novaObservacao.trim(),
-        data: new Date(),
-        operador: user?.nome || 'Operador Atual'
-      };
-      setObservacoes(prev => [novaObs, ...prev]);
-      setNovaObservacao('');
-    }
-  };
-
-  // Função para formatar data e hora
   const formatarDataHora = (data) => {
-    return data.toLocaleString('pt-BR', {
+    return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    });
+    }).format(data);
   };
 
-  // Função para lidar com Enter no input de observação
   const handleKeyPressObservacao = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -606,72 +1129,66 @@ const Dashboard = () => {
     }
   };
 
-  // Função para rejeitar o atendimento
   const rejeitarAtendimento = () => {
-    setModalNovoAtendimento(false);
-    setNovoAtendimentoData(null);
-
-    // Para o timer
-    if (intervalAceitar) {
-      clearInterval(intervalAceitar);
-      setIntervalAceitar(null);
-    }
-
-    setTempoRestanteAceitar(45);
-  };
-
-  // Limpa o interval quando o componente é desmontado
-  useEffect(() => {
-    return () => {
+    if (novoAtendimentoData) {
+      console.log('Rejeitando atendimento:', novoAtendimentoData.id);
+      setModalNovoAtendimento(false);
+      setNovoAtendimentoData(null);
       if (intervalAceitar) {
         clearInterval(intervalAceitar);
+        setIntervalAceitar(null);
       }
-    };
-  }, [intervalAceitar]);
+      setTempoRestanteAceitar(45);
+    }
+  };
+
+  const getRoleLabel = (tipo) => {
+    switch (tipo) {
+      case 'admin': return 'Administrador';
+      case 'operador': return 'Operador';
+      case 'supervisor': return 'Supervisor';
+      default: return tipo;
+    }
+  };
 
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="header-content">
           <div className="header-text">
-            <h1 className="page-title">Atendimentos</h1>
-            <p className="page-description">Gerencie todos os atendimentos do sistema</p>
+            <h1 className="page-title">Dashboard de Atendimentos</h1>
+            <p className="page-description">
+              Bem-vindo, {user?.nome}! Gerencie seus atendimentos em tempo real.
+            </p>
           </div>
           <div className="header-actions">
-            <div className="status-indicator">
-            </div>
+           
             <div className="action-buttons">
-              <button
-                className="btn-primary"
-                onClick={abrirModalHabilitacao}
-                disabled={atendimentoHabilitado}
-              >
-                Habilitar Atendimento
-              </button>
-
-              <button
-                className="btn-aceitar-atendimento"
-                onClick={abrirModalNovoAtendimento}
-                disabled={!atendimentoHabilitado}
-              >
-                Aceitar Atendimento
-              </button>
-
-              {!atendimentoPausado ? (
-                <button
-                  className="btn-warning"
-                  onClick={pausarAtendimentos}
-                  disabled={!atendimentoHabilitado}
+              {!atendimentoHabilitado ? (
+                <button 
+                  className="btn-warning" 
+                  onClick={abrirModalHabilitacao}
                 >
-                  Pausar Atendimentos
+                  🔓 Habilitar Atendimentos
                 </button>
               ) : (
-                <button
-                  className="btn-timer"
-                  onClick={abrirModalConfirmacao}
-                >
-                  Atendimento Pausado {formatarTempo(tempoRestante)}
-                </button>
+                <>
+                  {!atendimentoPausado ? (
+                    <button 
+                      className="btn-warning" 
+                      onClick={pausarAtendimentos}
+                    >
+                      ⏸️ Pausar Atendimentos
+                    </button>
+                  ) : (
+                    <button 
+                      className="btn-timer" 
+                      onClick={abrirModalConfirmacao}
+                    >
+                      ⏱️ Pausado - {formatarTempo(tempoRestante)}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -680,406 +1197,676 @@ const Dashboard = () => {
 
       <div className="page-content-dashboard">
         <div className="whatsapp-layout">
-          {/* Coluna Esquerda - Lista de Atendimentos */}
-          <div className={`atendimentos-sidebar ${!atendimentoHabilitado ? 'disabled' : ''}`}>
+          <div className="atendimentos-sidebar">
             <div className="sidebar-header">
-              <h3>Atendimentos</h3>
-              <div className="search-container">
-                <input
-                  type="text"
-                  placeholder="Buscar por ID, número ou status..."
-                  className="search-input"
-                  value={termoBusca}
-                  onChange={(e) => setTermoBusca(e.target.value)}
-                  disabled={!atendimentoHabilitado}
-                />
+              <h3>{isAdmin ? 'Todos os Atendimentos' : 'Meus Atendimentos'}</h3>
+              <div className='sidebar-content'>
+              <div className="search-filter-container">
+                <div className="search-container">
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder={isAdmin ? "Buscar em todos os atendimentos..." : "Buscar nos meus atendimentos..."}
+                    value={termoBusca}
+                    onChange={(e) => setTermoBusca(e.target.value)}
+                  />
+                </div>
+                {isAdmin && (
+                  <div className="filter-container">
+                    <button 
+                      className="filter-toggle-btn"
+                      onClick={() => setMostrarFiltros(!mostrarFiltros)}
+                    >
+                      🔍 Filtros
+                    </button>
+                    {mostrarFiltros && (
+                      <div className="filter-dropdown">
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'todos' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('todos')}
+                          >
+                            Todos
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'novo' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('novo')}
+                          >
+                            Novo
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'em-andamento' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('em-andamento')}
+                          >
+                            Em andamento
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'aguardando' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('aguardando')}
+                          >
+                            Aguardando
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'pausado' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('pausado')}
+                          >
+                            Pausado
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'finalizado' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('finalizado')}
+                          >
+                            Finalizado
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'abandonado' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('abandonado')}
+                          >
+                            Abandonado
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'nao_atendido' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('nao_atendido')}
+                          >
+                            Não Atendido
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               </div>
             </div>
-
-            {/* Filtros de Status */}
-            <div className="status-filters">
-              <div className="filter-tabs">
-                <button
-                  className={`filter-tab ${filtroStatus === 'todos' ? 'active' : ''}`}
-                  onClick={() => setFiltroStatus('todos')}
-                  disabled={!atendimentoHabilitado}
-                >
-                  Todos
-                </button>
-                <button
-                  className={`filter-tab ${filtroStatus === 'novo' ? 'active' : ''}`}
-                  onClick={() => setFiltroStatus('novo')}
-                  disabled={!atendimentoHabilitado}
-                >
-                  Novos
-                </button>
-                <button
-                  className={`filter-tab ${filtroStatus === 'em-andamento' ? 'active' : ''}`}
-                  onClick={() => setFiltroStatus('em-andamento')}
-                  disabled={!atendimentoHabilitado}
-                >
-                  Em Andamento
-                </button>
-                <button
-                  className={`filter-tab ${filtroStatus === 'aguardando' ? 'active' : ''}`}
-                  onClick={() => setFiltroStatus('aguardando')}
-                  disabled={!atendimentoHabilitado}
-                >
-                  Aguardando
-                </button>
-                <button
-                  className={`filter-tab ${filtroStatus === 'finalizado' ? 'active' : ''}`}
-                  onClick={() => setFiltroStatus('finalizado')}
-                  disabled={!atendimentoHabilitado}
-                >
-                  Finalizados
-                </button>
-              </div>
-            </div>
-
-            {!atendimentoHabilitado && (
-              <div className="atendimentos-disabled-overlay">
-                <div className="disabled-message">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                  </svg>
-                  <h4>Atendimentos Desabilitados</h4>
+            
+            <div className="atendimentos-list">
+              {!atendimentoHabilitado ? (
+                <div className="disabled-state">
+                  <div className="disabled-icon">🚫</div>
+                  <h3>Atendimentos Desabilitados</h3>
                   <p>Você precisa se habilitar para acessar a lista de atendimentos</p>
                 </div>
-              </div>
-            )}
-
-            <div className={`atendimentos-list ${!atendimentoHabilitado ? 'disabled' : ''}`}>
-              {atendimentosFiltrados.length > 0 ? (
-                atendimentosFiltrados.map((atendimento) => (
-                  <div
+              ) : loading ? (
+                <div className="loading-state">
+                  <p>Carregando atendimentos...</p>
+                </div>
+              ) : error ? (
+                <div className="error-state">
+                  <p>{error}</p>
+                  <button onClick={carregarAtendimentos} className="btn-secondary">
+                    Tentar Novamente
+                  </button>
+                </div>
+              ) : atendimentosFiltrados.length === 0 ? (
+                <div className="empty-state">
+                  {atendimentos.length === 0 ? (
+                    <p>Nenhum atendimento disponível no momento.</p>
+                  ) : (
+                    <p>Nenhum resultado encontrado para os filtros aplicados.</p>
+                  )}
+                </div>
+              ) : (
+                atendimentosFiltrados.map(atendimento => (
+                  <div 
                     key={atendimento.id}
-                    className={`atendimento-item ${atendimentoSelecionado?.id === atendimento.id ? 'active' : ''}`}
+                    className={`atendimento-item ${atendimentoSelecionado?.id === atendimento.id ? 'active' : ''} ${atendimentosComNovasMensagens.has(atendimento.id) ? 'has-new-messages' : ''}`}
                     onClick={() => selecionarAtendimento(atendimento)}
-                    style={{ cursor: 'pointer' }}
                   >
                     <div className="atendimento-avatar">
-                      <span>{atendimento.avatar}</span>
+                      {(() => {
+                        const nomes = atendimento.nome.split(' ');
+                        const iniciais = nomes.length > 1 
+                          ? nomes[0].charAt(0).toUpperCase() + nomes[nomes.length - 1].charAt(0).toUpperCase()
+                          : nomes[0].charAt(0).toUpperCase();
+                        return iniciais;
+                      })()}
                     </div>
                     <div className="atendimento-info">
                       <div className="atendimento-header">
-                        <div className="atendimento-nome-id">
+                        <div className="atendimento-nome-time">
                           <span className="atendimento-nome">{atendimento.nome}</span>
-                          <span className="atendimento-id">#{atendimento.id}</span>
+                          <span className="atendimento-time">{atendimento.horario}</span>
                         </div>
-                        <span className="atendimento-time">{atendimento.horario}</span>
+                        <div className="atendimento-codigo">
+                          <span className="codigo-valor">#{atendimento.codigo}</span>
+                        </div>
                       </div>
                       <div className="atendimento-preview">
-                        <span className="last-message">{atendimento.ultimaMensagem}</span>
-                        <span className={`status-badge status-${atendimento.status}`}>{atendimento.statusTexto}</span>
+                        <div className="status-message-column">
+                          <span className={`status-badge status-${atendimento.status ? atendimento.status.replace('_', '-') : 'pendente'}`}>
+                            {atendimento.status || 'Pendente'}
+                          </span>
+                          <span className="last-message">{atendimento.ultima_mensagem}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 ))
-              ) : (
-                <div className="no-results">
-                  <div className="no-results-content">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <path d="M21 21l-4.35-4.35"></path>
-                    </svg>
-                    <h4>Nenhum atendimento encontrado</h4>
-                    <p>Tente buscar por outro termo</p>
-                  </div>
-                </div>
               )}
             </div>
           </div>
 
-          {/* Coluna Direita - Chat */}
-          <div className={`chat-container ${!atendimentoHabilitado ? 'disabled' : ''}`}>
-            {!atendimentoHabilitado && (
-              <div className="chat-disabled-overlay">
-                <div className="disabled-message">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                  </svg>
-                  <h4>Chat Desabilitado</h4>
-                  <p>Habilite-se para iniciar conversas</p>
+          <div className="chat-container">
+            {!atendimentoHabilitado ? (
+              <div className="content-placeholder disabled-chat">
+                <div className="placeholder-icon">💬</div>
+                <h3>Chat Desabilitado</h3>
+                <p>Habilite-se para iniciar conversas</p>
+              </div>
+            ) : atendimentoSelecionado ? (
+              <>
+                <div className="chat-header">
+                  <div className="chat-user-info">
+                    <div className="chat-avatar">
+                      {atendimentoSelecionado.nome.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="chat-details">
+                      <div className="nome-container-dashboard">
+                        <h4>{atendimentoSelecionado.nome}</h4>
+                        <button 
+                          className="btn-edit-nome-dashboard"
+                          onClick={() => {
+                            setNovoNomeCliente(atendimentoSelecionado.nome);
+                            setModalEditarNome(true);
+                          }}
+                          title="Editar nome do cliente"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                      
+                      
+                    </div>
+                  </div>
+                  <div className="chat-actions">
+                    <button 
+                      className="btn-action btn-info"
+                      onClick={() => abrirModalInformacoes(atendimentoSelecionado)}
+                    >
+                       Informações
+                    </button>
+                  </div>
                 </div>
+
+                <div className="chat-messages">
+                   {mensagens[atendimentoSelecionado.id]?.map(mensagem => {
+                     const getRoleDisplayName = (role) => {
+                       switch(role) {
+                         case 'cliente': return 'CLIENTE';
+                         case 'agente': return 'AGENTE IA';
+                         case 'operador': return 'OPERADOR';
+                         default: return role?.toUpperCase() || 'CLIENTE';
+                       }
+                     };
+                     
+                     // Função para renderizar conteúdo da mensagem baseado no tipo
+                     const renderMessageContent = (mensagem) => {
+                       const { mensagem: text, type, document_name, conteudo } = mensagem;
+                       
+                       // Se for uma mensagem de texto (padrão)
+                       if (!type || type === 'text') {
+                         if (!text) return null;
+                         
+                         // Dividir o texto em linhas
+                         const lines = text.split('\n');
+                         
+                         return lines.map((line, index) => {
+                           // Processar formatação markdown básica
+                           let processedLine = line
+                             // Negrito **texto**
+                             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                             // Itálico *texto*
+                             .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                             // Links [texto](url)
+                             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+                           
+                           // Se a linha está vazia, renderizar como quebra de linha
+                           if (line.trim() === '') {
+                             return <br key={index} />;
+                           }
+                           
+                           // Se a linha começa com -, renderizar como item de lista
+                           if (line.trim().startsWith('- ')) {
+                             const listItem = line.replace(/^\s*-\s*/, '');
+                             const processedItem = listItem
+                               .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                               .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                               .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+                             
+                             return (
+                               <div key={index} className="message-list-item">
+                                 <span className="list-bullet">•</span>
+                                 <span dangerouslySetInnerHTML={{ __html: processedItem }} />
+                               </div>
+                             );
+                           }
+                           
+                           // Renderizar linha normal
+                           return (
+                             <div key={index} className="message-line">
+                               <span dangerouslySetInnerHTML={{ __html: processedLine }} />
+                             </div>
+                           );
+                         });
+                       }
+                       
+                       // Se for uma imagem
+                       if (type === 'photo') {
+                         return (
+                           <div className="message-image">
+                             <img 
+                               src={conteudo} 
+                               alt={document_name || 'Imagem'}
+                               className="chat-image"
+                               onClick={() => window.open(conteudo, '_blank')}
+                               onError={(e) => {
+                                 e.target.style.display = 'none';
+                                 e.target.nextSibling.style.display = 'block';
+                               }}
+                             />
+                             <div className="image-error" style={{display: 'none'}}>
+                               <FontAwesomeIcon icon={faImage} className="photo-icon" />
+                               <span>Erro ao carregar imagem</span>
+                             </div>
+                             {document_name && (
+                               <div className="file-info">
+                                 <span className="file-name">{document_name}</span>
+                               </div>
+                             )}
+                           </div>
+                         );
+                       }
+                       
+                       // Se for um documento
+                       if (type === 'document') {
+                         const fileType = mensagem.file_type || '';
+                         const fileName = document_name || '';
+                         
+                         const getDocumentIcon = () => {
+                           const lowerFileType = fileType.toLowerCase();
+                           const lowerFileName = fileName.toLowerCase();
+                           
+                           // Verificar primeiro pelo MIME type
+                           if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return faFilePdf;
+                           if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return faFileWord;
+                           if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return faFileExcel;
+                           if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return faFilePowerpoint;
+                           if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return faFileArchive;
+                           if (lowerFileType.includes('video')) return faFileVideo;
+                           if (lowerFileType.includes('audio')) return faFileAudio;
+                           if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return faFileCode;
+                           
+                           // Fallback para extensão do arquivo
+                           if (lowerFileName.endsWith('.pdf')) return faFilePdf;
+                           if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return faFileWord;
+                           if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return faFileExcel;
+                           if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return faFilePowerpoint;
+                           if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return faFileArchive;
+                           if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return faFileVideo;
+                           if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return faFileAudio;
+                           if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return faFileCode;
+                           
+                           return faFile;
+                         };
+                         
+                         const getDocumentClass = () => {
+                           const lowerFileType = fileType.toLowerCase();
+                           const lowerFileName = fileName.toLowerCase();
+                           
+                           // Verificar primeiro pelo MIME type
+                           if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return 'pdf-icon';
+                           if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return 'word-icon';
+                           if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return 'excel-icon';
+                           if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return 'powerpoint-icon';
+                           if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return 'archive-icon';
+                           if (lowerFileType.includes('video')) return 'video-icon';
+                           if (lowerFileType.includes('audio')) return 'audio-icon';
+                           if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return 'code-icon';
+                           
+                           // Fallback para extensão do arquivo
+                           if (lowerFileName.endsWith('.pdf')) return 'pdf-icon';
+                           if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return 'word-icon';
+                           if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return 'excel-icon';
+                           if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return 'powerpoint-icon';
+                           if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return 'archive-icon';
+                           if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return 'video-icon';
+                           if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return 'audio-icon';
+                           if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return 'code-icon';
+                           
+                           return 'file-icon';
+                         };
+                         
+                         const getDocumentType = () => {
+                           const lowerFileType = fileType.toLowerCase();
+                           const lowerFileName = fileName.toLowerCase();
+                           
+                           // Verificar primeiro pelo MIME type
+                           if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return 'PDF';
+                           if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return 'WORD';
+                           if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return 'EXCEL';
+                           if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return 'POWERPOINT';
+                           if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return 'ARQUIVO';
+                           if (lowerFileType.includes('video')) return 'VÍDEO';
+                           if (lowerFileType.includes('audio')) return 'ÁUDIO';
+                           if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return 'CÓDIGO';
+                           
+                           // Fallback para extensão do arquivo
+                           if (lowerFileName.endsWith('.pdf')) return 'PDF';
+                           if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return 'WORD';
+                           if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return 'EXCEL';
+                           if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return 'POWERPOINT';
+                           if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return 'ARQUIVO';
+                           if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return 'VÍDEO';
+                           if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return 'ÁUDIO';
+                           if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return 'CÓDIGO';
+                           
+                           return 'DOCUMENTO';
+                         };
+                         
+                         const handleDocumentClick = () => {
+                           // Todos os documentos agora abrem em nova guia
+                           window.open(conteudo, '_blank');
+                         };
+                         
+                         return (
+                           <div className="message-document">
+                             <div className="document-container" onClick={handleDocumentClick} style={{cursor: 'pointer'}}>
+                               <div className="document-icon">
+                                 <FontAwesomeIcon 
+                                   icon={getDocumentIcon()} 
+                                   className={getDocumentClass()}
+                                 />
+                               </div>
+                               <div className="document-info">
+                                 <div className="document-name">{document_name || 'Documento'}</div>
+                                 <div className="document-type">
+                                   {getDocumentType()} • {mensagem.file_size ? `${Math.round(mensagem.file_size / 1024)} KB` : ''}
+                                 </div>
+                               </div>
+                               <div className="document-action-icon">
+                                 <FontAwesomeIcon icon={fileType.includes('pdf') || fileName.toLowerCase().endsWith('.pdf') ? faFile : faDownload} />
+                               </div>
+                             </div>
+                           </div>
+                         );
+                       }
+                       
+                       // Fallback para tipos desconhecidos
+                       return (
+                         <div className="message-unknown">
+                           <span>Tipo de mensagem não suportado: {type}</span>
+                         </div>
+                       );
+                     };
+
+                     return (
+                        <div key={mensagem.id} className={`message ${mensagem.role}`}>
+                          <div className="message-content">
+                            <span className={`message-role-label ${mensagem.role}`}>
+                              {getRoleDisplayName(mensagem.role)}
+                            </span>
+                            <div className="message-text">
+                              {renderMessageContent(mensagem)}
+                            </div>
+                            <span className="message-time">{new Date(mensagem.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        </div>
+                      );
+                   }) || (
+                    <div className="no-messages">
+                      <p>Nenhuma mensagem ainda.</p>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="chat-input-container">
+                  <div className="attachment-container">
+                    <button 
+                      className="btn-attachment"
+                      disabled={!atendimentoHabilitado}
+                      title="Anexar arquivo"
+                      onClick={toggleMenuAnexos}
+                    >
+                      <FontAwesomeIcon icon={faPaperclip} />
+                    </button>
+                    
+                    {/* Menu de anexos */}
+                     {menuAnexosAberto && (
+                       <div className="attachment-menu">
+                         <div className="attachment-menu-item" onClick={handleAnexarFoto}>
+                           <div className="attachment-icon photo">
+                             <FontAwesomeIcon icon={faImage} />
+                           </div>
+                           <span>Fotos e vídeos</span>
+                         </div>
+                         
+                         <div className="attachment-menu-item" onClick={handleAnexarDocumento}>
+                           <div className="attachment-icon document">
+                             <FontAwesomeIcon icon={faFile} />
+                           </div>
+                           <span>Documento</span>
+                         </div>
+                       </div>
+                     )}
+                  </div>
+                  <div className="message-input-wrapper">
+                    <input 
+                      type="text" 
+                      className="message-input"
+                      placeholder="Digite sua mensagem..."
+                      value={mensagemInput}
+                      onChange={(e) => setMensagemInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      disabled={!atendimentoHabilitado || enviandoMensagem}
+                    />
+                  </div>
+                  <button 
+                    className="btn-send"
+                    onClick={enviarMensagem}
+                    disabled={!atendimentoHabilitado || enviandoMensagem || !mensagemInput.trim()}
+                    title="Enviar mensagem"
+                  >
+                    <FontAwesomeIcon icon={faPaperPlane} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="content-placeholder">
+                <div className="placeholder-icon">💬</div>
+                <h3>Selecione um atendimento</h3>
+                <p>Escolha um atendimento da lista para visualizar a conversa</p>
               </div>
             )}
-            <div className="chat-header">
-              <div className="chat-user-info">
-                <div className="chat-avatar">
-                  <span>{atendimentoSelecionado?.avatar || 'JS'}</span>
-                </div>
-                <div className="chat-details">
-                  <div className="chat-nome-id">
-                    <div className="nome-container-dashboard">
-                      <h4>{atendimentoSelecionado?.nome || 'João da Silva'}</h4>
-                      <button 
-                        className="btn-edit-nome-dashboard"
-                        onClick={() => {
-                          setNovoNomeCliente(atendimentoSelecionado?.nome || 'João da Silva');
-                          setModalEditarNome(true);
-                        }}
-                        title="Editar nome do cliente"
-                      >
-                        ✏️
-                      </button>
-                    </div>
-                    <span className="chat-atendimento-id">#{atendimentoSelecionado?.id || 'ATD-2024-001'}</span>
-                  </div>
-                  <span className="phone-number">{atendimentoSelecionado?.telefone || '+55 11 99999-9999'}</span>
-                 
-                </div>
-              </div>
-              <div className="chat-actions">
-                <button className="btn-action btn-info" title="Informações" onClick={() => setModalInformacoes(true)}>
-                  Informações
-                </button>
-                <button className="btn-action btn-encerrar" title="Encerrar Atendimento">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 6L6 18M6 6l12 12"></path>
-                  </svg>
-                  Encerrar
-                </button>
-              </div>
-            </div>
-
-            <div className="chat-messages">
-              {/* Mensagens do chat */}
-              {atendimentoSelecionado && conversas[atendimentoSelecionado.id] ? (
-                conversas[atendimentoSelecionado.id].map((mensagem, index) => {
-                  // Função para obter o label da role
-                  const getRoleLabel = (tipo) => {
-                    switch (tipo) {
-                      case 'ia': return 'Agente IA';
-                      case 'operador': return 'Operador';
-                      case 'cliente': return 'Cliente';
-                      default: return 'Sistema';
-                    }
-                  };
-
-                  return (
-                    <div key={index} className="message-group">
-                      <div className={`message ${mensagem.tipo}`}>
-                        <div className="message-content">
-                          <div className={`message-role-label ${mensagem.tipo}`}>
-                            {getRoleLabel(mensagem.tipo)}
-                          </div>
-                          <p>{mensagem.mensagem}</p>
-                          <span className="message-time">{mensagem.horario}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="no-chat-selected">
-                  <div className="no-chat-content">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    <h4>Selecione um atendimento</h4>
-                    <p>Escolha um atendimento da lista para visualizar a conversa</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="chat-input-container">
-              <div className="input-actions">
-                <button className="btn-attachment" title="Enviar arquivo">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.49"></path>
-                  </svg>
-                </button>
-              </div>
-              <div className="message-input-wrapper">
-                <textarea
-                  placeholder="Digite sua mensagem..."
-                  className="message-input"
-                  rows="1"
-                ></textarea>
-              </div>
-              <button className="btn-send">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22,2 15,22 11,13 2,9"></polygon>
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Modal para Habilitar Atendimento */}
+      {/* Modal de Habilitação */}
       {modalHabilitacao && (
-        <div className="modal-overlay" onClick={fecharModalHabilitacao}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
-              <h3>Habilitar Atendimento</h3>
+              <h3>Habilitar Atendimentos</h3>
               <button className="modal-close" onClick={fecharModalHabilitacao}>×</button>
             </div>
             <div className="modal-body">
               <div className="habilitacao-content">
                 <div className="senha-gerada">
-                  <h4>Senha de Acesso:</h4>
+                  <h4>Senha Gerada:</h4>
                   <div className="senha-display">
                     {senhaGerada.split('').map((char, index) => (
                       <span key={index} className="senha-char">{char}</span>
                     ))}
                   </div>
-                  <p className="senha-instrucao">Digite a senha acima nos campos abaixo:</p>
                 </div>
-
+                <p className="senha-instrucao">
+                  Digite a senha acima para habilitar os atendimentos:
+                </p>
                 <div className="senha-input">
                   <div className="passcode-container">
-                    {senhaDigitada.map((char, index) => (
+                    {senhaDigitada.map((digito, index) => (
                       <input
                         key={index}
                         id={`senha-${index}`}
                         type="text"
                         className="passcode-field"
-                        value={char}
+                        value={digito}
                         onChange={(e) => atualizarSenhaDigitada(index, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !char && index > 0) {
-                            const campoAnterior = document.getElementById(`senha-${index - 1}`);
-                            if (campoAnterior) campoAnterior.focus();
-                          }
-                        }}
-                        maxLength={1}
+                        maxLength="1"
                         disabled={verificandoSenha}
-                        autoComplete="off"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck="false"
-                        data-form-type="other"
                       />
                     ))}
                   </div>
                 </div>
               </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={fecharModalHabilitacao}
-                  disabled={verificandoSenha}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={verificarSenha}
-                  disabled={verificandoSenha || senhaDigitada.join('').length !== 6}
-                >
-                  {verificandoSenha ? 'Verificando...' : 'Habilitar'}
-                </button>
-              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn-secondary" 
+                onClick={fecharModalHabilitacao}
+                disabled={verificandoSenha}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={verificarSenha}
+                disabled={verificandoSenha || senhaDigitada.join('').length !== 6}
+              >
+                {verificandoSenha ? 'Verificando...' : 'Habilitar'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Confirmação para Retomar Atendimentos */}
+      {/* Modal de Confirmação de Pausa */}
       {modalConfirmacao && (
-        <div className="modal-overlay" onClick={fecharModalConfirmacao}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
-              <h3>Retomar Atendimentos</h3>
+              <h3>Atendimentos Pausados</h3>
               <button className="modal-close" onClick={fecharModalConfirmacao}>×</button>
             </div>
             <div className="modal-body">
               <div className="confirmacao-content">
                 <div className="confirmacao-message">
                   <p className="confirmacao-texto">
-                    Deseja retomar os atendimentos agora?
+                    Seus atendimentos estão pausados.
                   </p>
                   <p className="confirmacao-info">
                     Tempo restante: <strong>{formatarTempo(tempoRestante)}</strong>
                   </p>
                 </div>
               </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={fecharModalConfirmacao}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={retomarAtendimentos}
-                >
-                  Retomar Atendimentos
-                </button>
-              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={fecharModalConfirmacao}>
+                Fechar
+              </button>
+              <button className="btn-primary" onClick={retomarAtendimentos}>
+                Retomar Atendimentos
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Informações do Atendimento */}
-      {modalInformacoes && (
+      {/* Modal de Informações */}
+      {modalInformacoes && atendimentoSelecionado && (
         <div className="modal-overlay">
-          <div className="modal-content-info modal-informacoes">
+          <div className="modal-content modal-informacoes">
             <div className="modal-header">
               <h3>Informações do Atendimento</h3>
-              <button
-                className="modal-close"
-                onClick={() => setModalInformacoes(false)}
-              >
-                ×
-              </button>
+              <button className="modal-close" onClick={fecharModalInformacoes}>×</button>
             </div>
             <div className="modal-body">
-              <div className="info-container-split">
-                <div className="info-section">
-                  <h4>Dados do Cliente</h4>
-                  <div className="info-grid">
+              <div className="info-section">
+                <h4>Dados do Cliente</h4>
+                <div className="info-container-split">
+                  <div className="info-section-50">
                     <div className="info-item">
-                      <label>Nome:</label>
-                      <span>João da Silva</span>
+                      <label>NOME:</label>
+                      <span>{atendimentoSelecionado.nome}</span>
                     </div>
                     <div className="info-item">
-                      <label>Telefone:</label>
-                      <span>+55 11 99999-9999</span>
+                      <label>E-MAIL:</label>
+                      <div className="info-item-with-edit">
+                        <span>{atendimentoSelecionado.email || 'joao.silva@email.com'}</span>
+                        <button 
+                          className="btn-edit-field"
+                          onClick={() => {
+                            setNovoEmail(atendimentoSelecionado.email || '');
+                            setModalEditarEmail(true);
+                          }}
+                          title="Editar email"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="info-section-50">
+                    <div className="info-item">
+                      <label>TELEFONE:</label>
+                      <span>{atendimentoSelecionado.telefone}</span>
                     </div>
                     <div className="info-item">
-                      <label>E-mail:</label>
-                      <span>joao.silva@email.com</span>
-                    </div>
-                    <div className="info-item">
-                      <label>Status:</label>
-                      <span className="status-badge status-em-andamento">Em andamento</span>
+                      <label>STATUS:</label>
+                      <span className={`status-badge status-${atendimentoSelecionado.status ? atendimentoSelecionado.status.replace('_', '-') : 'pendente'}`}>
+                        {atendimentoSelecionado.status || 'EM ANDAMENTO'}
+                      </span>
                     </div>
                   </div>
                 </div>
-
-                <div className="info-section">
-                  <h4>Detalhes do Atendimento</h4>
-                  <div className="info-grid">
+              </div>
+              
+              <div className="info-section">
+                <h4>Detalhes do Atendimento</h4>
+                <div className="info-container-split">
+                  <div className="info-section-50">
                     <div className="info-item">
-                      <label>ID do Atendimento:</label>
-                      <span>#ATD-2024-001</span>
+                      <label>ID DO ATENDIMENTO:</label>
+                      <span>#{atendimentoSelecionado.codigo}</span>
                     </div>
                     <div className="info-item">
-                      <label>Data de Início:</label>
-                      <span>15/01/2024 às 14:25</span>
+                      <label>OPERADOR RESPONSÁVEL:</label>
+                      <span>
+                        {atendimentoSelecionado.operador_id 
+                          ? (operadoresNomes[atendimentoSelecionado.operador_id] || 'Carregando...') 
+                          : 'Sem operador atribuído'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                  <div className="info-section-50">
+                    <div className="info-item">
+                      <label>DATA DE INÍCIO:</label>
+                      <span>{formatarDataHora(new Date(atendimentoSelecionado.created_at))}</span>
                     </div>
                     <div className="info-item">
-                      <label>Operador Responsável:</label>
-                      <span>Carlos Santos</span>
-                    </div>
-                    <div className="info-item">
-                      <label>Categoria:</label>
-                      <span>Seguro</span>
+                      <label>CATEGORIA:</label>
+                      <span>
+                        {atendimentoSelecionado.categoria_id 
+                          ? (categoriasNomes[atendimentoSelecionado.categoria_id] || 'Carregando...')
+                          : 'Categoria não definida'
+                        }
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1088,62 +1875,63 @@ const Dashboard = () => {
               <div className="info-section">
                 <h4>Descrição do Atendimento</h4>
                 <div className="descricao-atendimento">
-                  <p>Cliente relatou problema com pedido #12345. Verificado status do pedido e informado prazo de entrega. Cliente satisfeito com o atendimento.</p>
+                  <p>{atendimentoSelecionado.descricao || 'Nenhuma descrição disponível para este atendimento.'}</p>
                 </div>
               </div>
 
-              <div className="info-section">
-                <h4>Observações</h4>
-                <div className="observacoes-input-container">
-                  <div className="input-group">
-                    <textarea
-                      value={novaObservacao}
-                      onChange={(e) => setNovaObservacao(e.target.value)}
-                      onKeyPress={handleKeyPressObservacao}
-                      placeholder="Digite uma nova observação..."
-                      className="observacao-input"
-                      spellCheck={true}
-                      autoCorrect="on"
-                      autoComplete="on"
-                      lang="pt-BR"
-                      rows="3"
-                    />
-                    <button
-                      onClick={adicionarObservacao}
-                      className="btn-adicionar-observacao"
-                      disabled={!novaObservacao.trim()}
-                    >
-                      Adicionar
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="observacoes-timeline">
-                  {observacoes.length > 0 ? (
-                    observacoes.map((obs) => (
-                      <div key={obs.id} className="timeline-item">
-                        <div className="timeline-content">
-                          <div className="timeline-header">
-                            <span className="timeline-operador">{obs.operador}</span>
-                            <span className="timeline-data">{formatarDataHora(obs.data)}</span>
-                          </div>
-                          <div className="timeline-texto">{obs.texto}</div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="no-observacoes">
-                      <p>Nenhuma observação registrada ainda.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+               <div className="info-section">
+                 <h4>Observações</h4>
+                 <div className="observacoes-container">
+                   <div className="nova-observacao">
+                     <textarea
+                       className="observacoes-textarea"
+                       placeholder="Digite uma nova observação..."
+                       value={novaObservacao}
+                       onChange={(e) => setNovaObservacao(e.target.value)}
+                       onKeyPress={handleKeyPressObservacao}
+                       rows={3}
+                     />
+                     <button 
+                       className="btn-adicionar-observacao"
+                       onClick={adicionarObservacao}
+                       disabled={!novaObservacao.trim()}
+                     >
+                       Adicionar
+                     </button>
+                   </div>
+                   
+                   <div className="observacoes-lista">
+                     {carregandoObservacoes ? (
+                       <div className="observacoes-loading">
+                         <p>Carregando observações...</p>
+                       </div>
+                     ) : observacoes.length > 0 ? (
+                       observacoes.map((obs, index) => (
+                         <div key={obs.id || index} className="observacao-item">
+                           <div className="observacao-content">
+                             <p className="observacao-texto">{obs.observacao}</p>
+                           </div>
+                           <div className="observacao-meta">
+                             <span className="observacao-operador">
+                               {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
+                             </span>
+                             <span className="observacao-data">
+                               {formatarDataHora(new Date(obs.created_time))}
+                             </span>
+                           </div>
+                         </div>
+                       ))
+                     ) : (
+                       <div className="observacoes-vazio">
+                         <p>Nenhuma observação registrada para este atendimento.</p>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               </div>
             </div>
             <div className="modal-actions">
-              <button
-                className="btn-secondary"
-                onClick={() => setModalInformacoes(false)}
-              >
+              <button className="btn-secondary" onClick={fecharModalInformacoes}>
                 Fechar
               </button>
             </div>
@@ -1151,104 +1939,69 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Modal de Novo Atendimento */}
-      {modalNovoAtendimento && novoAtendimentoData && (
+      {/* Modal de Editar Nome */}
+      {modalEditarNome && (
         <div className="modal-overlay">
-          <div className="modal-aceitar-atendimento">
+          <div className="modal-content">
             <div className="modal-header">
-              <h3>Novo Atendimento Disponível</h3>
-              <div className="timer-aceitar">
-                <span className="timer-text">Tempo restante: {tempoRestanteAceitar}s</span>
-                <div className="timer-bar">
-                  <div
-                    className="timer-progress"
-                    style={{ width: `${(tempoRestanteAceitar / 45) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
+              <h3>Editar Nome do Cliente</h3>
+              <button className="modal-close" onClick={cancelarEdicaoNome}>×</button>
             </div>
-
             <div className="modal-body">
-              <div className="cliente-info">
-                <div className="cliente-avatar">{novoAtendimentoData.avatar}</div>
-                <div className="cliente-dados">
-                  <h4>{novoAtendimentoData.nome}</h4>
-                  <p>{novoAtendimentoData.telefone}</p>
-                  <span className={`status-badge ${novoAtendimentoData.status}`}>
-                    {novoAtendimentoData.statusTexto}
-                  </span>
-                </div>
-              </div>
-
-              <div className="ultima-mensagem">
-                <strong>Última mensagem:</strong>
-                <p>"{novoAtendimentoData.ultimaMensagem}"</p>
-                <span className="horario">{novoAtendimentoData.horario}</span>
+              <div className="form-group">
+                <label>Novo nome:</label>
+                <input
+                  type="text"
+                  value={novoNomeCliente}
+                  onChange={(e) => setNovoNomeCliente(e.target.value)}
+                  placeholder="Digite o novo nome do cliente"
+                  autoFocus
+                />
               </div>
             </div>
-
             <div className="modal-actions">
-              <button
-                className="btn-rejeitar"
-                onClick={rejeitarAtendimento}
-              >
-                Rejeitar
+              <button className="btn-secondary" onClick={cancelarEdicaoNome}>
+                Cancelar
               </button>
-              <button
-                className="btn-aceitar"
-                onClick={aceitarAtendimento}
-              >
-                Aceitar Atendimento
+              <button className="btn-primary" onClick={salvarNomeCliente}>
+                Salvar
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal de Edição de Nome do Cliente */}
-      {modalEditarNome && (
+      {/* Modal para editar email */}
+      {modalEditarEmail && (
         <div className="modal-overlay">
-          <div className="modal-editar-nome-dashboard">
+          <div className="modal-content">
             <div className="modal-header">
-              <h3>Editar Nome do Cliente</h3>
-              <button 
-                className="btn-close"
-                onClick={cancelarEdicaoNome}
-              >
-                ×
-              </button>
+              <h3>Editar Email</h3>
+              <button className="modal-close" onClick={cancelarEdicaoEmail}>×</button>
             </div>
-            
             <div className="modal-body">
-              <div className="cliente-info">
-                <p><strong>Atendimento:</strong> {atendimentoSelecionado?.id || 'ATD-2024-001'}</p>
-                <p><strong>Telefone:</strong> {atendimentoSelecionado?.telefone || '+55 11 99999-9999'}</p>
-              </div>
-              
               <div className="form-group">
-                <label htmlFor="novoNomeCliente">Nome do Cliente:</label>
+                <label>Novo email:</label>
                 <input
-                  type="text"
-                  id="novoNomeCliente"
-                  value={novoNomeCliente}
-                  onChange={(e) => setNovoNomeCliente(e.target.value)}
-                  placeholder="Digite o novo nome"
+                  type="email"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  placeholder="Digite o novo email"
                   autoFocus
                 />
               </div>
             </div>
-            
-            <div className="modal-actions">
+            <div className="modal-footer">
               <button 
-                className="btn-cancelar"
-                onClick={cancelarEdicaoNome}
+                className="btn-secondary" 
+                onClick={cancelarEdicaoEmail}
               >
                 Cancelar
               </button>
               <button 
-                className="btn-salvar"
-                onClick={salvarNomeCliente}
-                disabled={!novoNomeCliente.trim()}
+                className="btn-primary" 
+                onClick={salvarNovoEmail}
+                disabled={!novoEmail.trim()}
               >
                 Salvar
               </button>
