@@ -116,7 +116,7 @@ export const criar = async (operadorData) => {
       throw authError;
     }
 
-    // 3. Criar registro na tabela operadores
+    // 3. Criar registro na tabela operadores (inicialmente desabilitado)
     const { data, error } = await supabase
       .from('operadores')
       .insert({
@@ -126,7 +126,7 @@ export const criar = async (operadorData) => {
         cpf: cpf,
         perfil: perfil,
         status: 'Ativo',
-        habilitado: true
+        habilitado: false  // Criar desabilitado inicialmente
       })
       .select()
       .single();
@@ -142,8 +142,21 @@ export const criar = async (operadorData) => {
       throw error;
     }
 
+    // 4. Se for operador, habilitar para entrar na fila
+    let operadorFinal = data;
+    if (perfil === 'Operador') {
+      try {
+        console.log('🔄 [operadoresService] Habilitando operador recém-criado na fila...');
+        operadorFinal = await alterarHabilitacao(authData.user.id, true);
+        console.log('✅ [operadoresService] Operador adicionado à fila com pos_token:', operadorFinal?.pos_token);
+      } catch (habilitacaoError) {
+        console.error('⚠️ [operadoresService] Erro ao habilitar operador na fila:', habilitacaoError);
+        // Não bloqueia a criação se falhar a habilitação
+      }
+    }
+
     return {
-      ...data,
+      ...operadorFinal,
       senhaTemporaria: senhaTemporaria
     };
   } catch (error) {
@@ -198,23 +211,26 @@ export const atualizar = async (id, operadorData) => {
   }
 };
 
-// Alterar habilitação do operador
+// Alterar habilitação do operador (com suporte à fila)
 export const alterarHabilitacao = async (id, habilitado) => {
   try {
-    console.log('🔄 [operadoresService] Alterando habilitação via SQL direta:', { id, habilitado });
+    console.log('🔄 [operadoresService] Alterando habilitação com fila:', { id, habilitado });
     
+    // Usar função SQL que gerencia a fila automaticamente
     const { data, error } = await supabase
-      .from('operadores')
-      .update({ habilitado: habilitado })
-      .eq('id', id)
-      .select();
+      .rpc('toggle_operador_habilitacao', { 
+        p_operador_id: id,
+        p_habilitar: habilitado 
+      });
 
     if (error) {
-      console.error('❌ [operadoresService] Erro ao alterar habilitação via SQL:', error);
+      console.error('❌ [operadoresService] Erro ao alterar habilitação:', error);
       throw error;
     }
 
     console.log('✅ [operadoresService] Habilitação alterada com sucesso:', data);
+    console.log('📊 [operadoresService] Token na fila (pos_token):', data?.[0]?.pos_token);
+    
     return data && data.length > 0 ? data[0] : null;
   } catch (error) {
     console.error('❌ [operadoresService] Erro no serviço alterarHabilitacao:', error);

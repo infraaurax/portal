@@ -33,6 +33,12 @@ const Dashboard = () => {
   const [modalEditarNome, setModalEditarNome] = useState(false);
   const [novoNomeCliente, setNovoNomeCliente] = useState('');
   
+  // Estados para notificações de fila (atendimentos aguardando)
+  const [atendimentoAguardando, setAtendimentoAguardando] = useState(null);
+  const [modalAtendimentoAguardando, setModalAtendimentoAguardando] = useState(false);
+  const [tempoAceitarAtendimento, setTempoAceitarAtendimento] = useState(45);
+  const [intervalAceitarAtendimento, setIntervalAceitarAtendimento] = useState(null);
+  
   // Estados para dados do banco
   const [atendimentos, setAtendimentos] = useState([]);
   const [atendimentosFiltrados, setAtendimentosFiltrados] = useState([]);
@@ -205,6 +211,116 @@ const Dashboard = () => {
   useEffect(() => {
     aplicarFiltroStatus(filtroStatus);
   }, [termoBusca]);
+
+  // useEffect para escutar notificações de atendimentos aguardando (da fila)
+  useEffect(() => {
+    if (!user?.id || !atendimentoHabilitado) {
+      console.log('❌ [Notificações] Usuário não logado ou atendimento desabilitado');
+      return;
+    }
+
+    console.log('🔔 [Notificações] Configurando escuta para operador:', user.id);
+
+    // Canal de notificações específico do operador
+    const channel = supabase.channel(`atendimento_aguardando_${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'atendimentos',
+        filter: `operador_id=eq.${user.id}`
+      }, (payload) => {
+        console.log('📨 [Notificações] Notificação recebida:', payload);
+        
+        // Verificar se é um atendimento aguardando
+        if (payload.new.status === 'aguardando' && payload.new.operador_id === user.id) {
+          console.log('🆕 [Notificações] Novo atendimento aguardando para você!');
+          
+          // Buscar dados completos do atendimento
+          atendimentosService.buscarPorId(payload.new.id)
+            .then(atendimento => {
+              console.log('✅ [Notificações] Dados do atendimento carregados:', atendimento);
+              setAtendimentoAguardando(atendimento);
+              setModalAtendimentoAguardando(true);
+              setTempoAceitarAtendimento(45);
+              
+              // Capturar dados para o timeout (closure-safe)
+              const atendimentoIdParaTimeout = atendimento.id;
+              const operadorIdParaTimeout = user.id;
+              
+              // Iniciar contagem regressiva
+              const intervalo = setInterval(async () => {
+                setTempoAceitarAtendimento(prev => {
+                  if (prev <= 1) {
+                    clearInterval(intervalo);
+                    console.log('⏰ [Notificações] Timeout - rejeitando automaticamente');
+                    
+                    // Usar dados capturados no closure
+                    const atendimentoId = atendimentoIdParaTimeout;
+                    const operadorId = operadorIdParaTimeout;
+                    
+                    // Fechar modal imediatamente
+                    setModalAtendimentoAguardando(false);
+                    setAtendimentoAguardando(null);
+                    setIntervalAceitarAtendimento(null);
+                    
+                    // Rejeitar atendimento em background
+                    setTimeout(async () => {
+                      try {
+                        if (atendimentoId && operadorId) {
+                          console.log('🔄 [Timeout] Processando rejeição em background...', {
+                            atendimentoId,
+                            operadorId
+                          });
+                          
+                          const resultado = await atendimentosService.rejeitarAtendimentoAguardando(
+                            atendimentoId,
+                            operadorId
+                          );
+                          
+                          console.log('✅ [Timeout] Rejeição processada com sucesso:', resultado);
+                        } else {
+                          console.error('❌ [Timeout] Dados insuficientes para rejeição:', {
+                            atendimentoId,
+                            operadorId
+                          });
+                        }
+                      } catch (error) {
+                        console.error('❌ [Timeout] Erro ao processar rejeição:', error);
+                      }
+                    }, 100);
+                    
+                    return 0;
+                  }
+                  return prev - 1;
+                });
+              }, 1000);
+              
+              setIntervalAceitarAtendimento(intervalo);
+              
+              // Tocar som de notificação
+              try {
+                const audio = new Audio('/notification.mp3');
+                audio.play().catch(err => console.log('⚠️ [Notificações] Erro ao tocar som:', err));
+              } catch (err) {
+                console.log('⚠️ [Notificações] Áudio de notificação não disponível');
+              }
+            })
+            .catch(err => {
+              console.error('❌ [Notificações] Erro ao buscar dados do atendimento:', err);
+            });
+        }
+      })
+      .subscribe();
+
+    // Cleanup
+    return () => {
+      console.log('🔕 [Notificações] Removendo escuta de notificações');
+      supabase.removeChannel(channel);
+      if (intervalAceitarAtendimento) {
+        clearInterval(intervalAceitarAtendimento);
+      }
+    };
+  }, [user?.id, atendimentoHabilitado]);
 
   const carregarAtendimentos = async () => {
     try {
@@ -529,6 +645,80 @@ const Dashboard = () => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       enviarMensagem();
+    }
+  };
+
+  // Aceitar atendimento aguardando (da fila)
+  const handleAceitarAtendimentoAguardando = async () => {
+    try {
+      console.log('✅ [Fila] Aceitando atendimento aguardando...');
+      
+      if (intervalAceitarAtendimento) {
+        clearInterval(intervalAceitarAtendimento);
+        setIntervalAceitarAtendimento(null);
+      }
+      
+      const resultado = await atendimentosService.aceitarAtendimentoAguardando(
+        atendimentoAguardando.id,
+        user.id
+      );
+      
+      if (resultado.sucesso) {
+        console.log('✅ [Fila] Atendimento aceito com sucesso!');
+        
+        // Fechar modal
+        setModalAtendimentoAguardando(false);
+        setAtendimentoAguardando(null);
+        
+        // Recarregar atendimentos
+        await carregarAtendimentos();
+        
+        // Buscar atendimento atualizado e selecionar
+        const atendimentoAtualizado = await atendimentosService.buscarPorId(resultado.atendimento_id);
+        setAtendimentoSelecionado(atendimentoAtualizado);
+        
+        alert('✅ Atendimento aceito! Você pode começar a atender agora.');
+      } else {
+        throw new Error(resultado.mensagem || 'Erro ao aceitar atendimento');
+      }
+    } catch (error) {
+      console.error('❌ [Fila] Erro ao aceitar atendimento:', error);
+      alert('❌ Erro ao aceitar atendimento: ' + error.message);
+      setModalAtendimentoAguardando(false);
+      setAtendimentoAguardando(null);
+    }
+  };
+
+  // Rejeitar atendimento aguardando (passa para próximo da fila)
+  const handleRejeitarAtendimentoAguardando = async () => {
+    try {
+      console.log('❌ [Fila] Rejeitando atendimento aguardando...');
+      
+      if (intervalAceitarAtendimento) {
+        clearInterval(intervalAceitarAtendimento);
+        setIntervalAceitarAtendimento(null);
+      }
+      
+      if (!atendimentoAguardando) {
+        console.log('⚠️ [Fila] Nenhum atendimento para rejeitar');
+        return;
+      }
+      
+      const resultado = await atendimentosService.rejeitarAtendimentoAguardando(
+        atendimentoAguardando.id,
+        user.id
+      );
+      
+      console.log('📤 [Fila] Atendimento passado para o próximo da fila:', resultado);
+      
+      // Fechar modal
+      setModalAtendimentoAguardando(false);
+      setAtendimentoAguardando(null);
+      
+    } catch (error) {
+      console.error('❌ [Fila] Erro ao rejeitar atendimento:', error);
+      setModalAtendimentoAguardando(false);
+      setAtendimentoAguardando(null);
     }
   };
 
@@ -1243,6 +1433,14 @@ const Dashboard = () => {
                             onClick={() => aplicarFiltroStatus('em-andamento')}
                           >
                             Em andamento
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
+                            className={`filter-btn ${filtroStatus === 'atendimento_ia' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('atendimento_ia')}
+                          >
+                            Atendimento IA
                           </button>
                         </div>
                         <div className="filter-option">
@@ -2004,6 +2202,58 @@ const Dashboard = () => {
                 disabled={!novoEmail.trim()}
               >
                 Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Atendimento Aguardando (da Fila/IA) */}
+      {modalAtendimentoAguardando && atendimentoAguardando && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-atendimento-aguardando">
+            <div className="modal-header-aguardando">
+              <h2>🔔 Novo Atendimento</h2>
+              <div className="tempo-aceitar">
+                <span>Tempo restante: </span>
+                <strong className={tempoAceitarAtendimento <= 10 ? 'tempo-urgente' : ''}>
+                  {tempoAceitarAtendimento}s
+                </strong>
+              </div>
+            </div>
+            
+            <div className="modal-body-aguardando">
+              <div className="atendimento-info-aguardando">
+                <div className="cliente-avatar-aguardando">
+                  {atendimentoAguardando.avatar || atendimentoAguardando.nome?.substring(0, 2).toUpperCase()}
+                </div>
+                
+                <div className="cliente-dados-aguardando">
+                  <h3>{atendimentoAguardando.nome}</h3>
+                  <p><strong>Telefone:</strong> {atendimentoAguardando.telefone}</p>
+                  <p className="status-badge">Aguardando Atendimento</p>
+                </div>
+              </div>
+              
+              <div className="ultima-mensagem-aguardando">
+                <h4>Descrição do Atendimento:</h4>
+                <p>{atendimentoAguardando.descricao_atendimento || 'Sem descrição'}</p>
+                <span className="horario">{new Date(atendimentoAguardando.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+            
+            <div className="modal-footer-aguardando">
+              <button 
+                className="btn-rejeitar-aguardando"
+                onClick={handleRejeitarAtendimentoAguardando}
+              >
+                Rejeitar Atendimento
+              </button>
+              <button 
+                className="btn-aceitar-aguardando"
+                onClick={handleAceitarAtendimentoAguardando}
+              >
+                Aceitar Atendimento
               </button>
             </div>
           </div>

@@ -34,6 +34,7 @@ export const STATUS_USUARIO = {
 export const STATUS_ATENDIMENTO = {
   NOVO: 'novo',
   EM_ANDAMENTO: 'em-andamento',
+  ATENDIMENTO_IA: 'atendimento_ia',
   AGUARDANDO: 'aguardando',
   PAUSADO: 'pausado',
   FINALIZADO: 'finalizado',

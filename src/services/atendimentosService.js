@@ -8,11 +8,11 @@ export const atendimentosService = {
       console.log('🔍 Buscando atendimentos no banco de dados...');
       
       // Buscar atendimentos sem JOIN com operadores (tabela não existe)
-      // Filtrar apenas os status permitidos no dashboard: pausado, aguardando, finalizado, abandonado, nao_atendido, em-andamento
+      // Filtrar apenas os status permitidos no dashboard: pausado, aguardando, finalizado, abandonado, nao_atendido, em-andamento, atendimento_ia
       const { data, error } = await supabase
         .from('atendimentos')
         .select('*')
-        .in('status', ['pausado', 'aguardando', 'finalizado', 'abandonado', 'nao_atendido', 'em-andamento'])
+        .in('status', ['pausado', 'aguardando', 'finalizado', 'abandonado', 'nao_atendido', 'em-andamento', 'atendimento_ia'])
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -96,6 +96,7 @@ export const atendimentosService = {
     const statusMap = {
       'novo': 'Novo',
       'em-andamento': 'Em andamento',
+      'atendimento_ia': 'Atendimento IA',
       'aguardando': 'Aguardando',
       'pausado': 'Pausado',
       'finalizado': 'Finalizado',
@@ -108,17 +109,68 @@ export const atendimentosService = {
   // Buscar atendimento por ID com dados relacionados
   async buscarPorId(id) {
     try {
-      const { data, error } = await supabase
-        .rpc('get_atendimento_by_id', { p_id: id });
+      console.log('🔍 Buscando atendimento por ID:', id);
+      
+      // Buscar atendimento diretamente da tabela (sem JOIN com clientes)
+      const { data: atendimento, error } = await supabase
+        .from('atendimentos')
+        .select('*')
+        .eq('id', id)
+        .single();
 
       if (error) {
-        console.error('Erro ao buscar atendimento por ID via SQL:', error);
+        console.error('❌ Erro ao buscar atendimento por ID:', error);
         throw error;
       }
 
-      return data && data.length > 0 ? data[0] : null;
+      if (!atendimento) {
+        console.log('⚠️ Atendimento não encontrado');
+        return null;
+      }
+
+      // Buscar última mensagem
+      const { data: mensagens } = await supabase
+        .from('mensagens')
+        .select('conteudo, created_at')
+        .eq('atendimento_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const ultimaMensagem = mensagens && mensagens.length > 0 ? mensagens[0] : null;
+
+      // Buscar operador (se houver)
+      let operadorNome = null;
+      if (atendimento.operador_id) {
+        const { data: operador } = await supabase
+          .from('operadores')
+          .select('nome')
+          .eq('id', atendimento.operador_id)
+          .single();
+        operadorNome = operador?.nome;
+      }
+
+      // Montar objeto de retorno
+      const resultado = {
+        id: atendimento.id,
+        status: atendimento.status,
+        operador_id: atendimento.operador_id,
+        operador_nome: operadorNome,
+        ultima_mensagem: ultimaMensagem?.conteudo || 'Sem mensagens',
+        ultimaMensagem: ultimaMensagem?.conteudo || 'Sem mensagens',
+        horario: ultimaMensagem ? new Date(ultimaMensagem.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+        created_at: atendimento.created_at,
+        updated_at: atendimento.updated_at,
+        // Dados reais da tabela atendimentos
+        nome: atendimento.cliente_nome || `Cliente ${atendimento.codigo || atendimento.id.substring(0, 8)}`,
+        telefone: atendimento.cliente_telefone || 'Não informado',
+        avatar: this.gerarAvatar(atendimento.cliente_nome || `Cliente ${atendimento.codigo || atendimento.id.substring(0, 8)}`),
+        descricao_atendimento: atendimento.descricao_atendimento || 'Sem descrição'
+      };
+
+      console.log('✅ Atendimento encontrado:', resultado);
+      return resultado;
     } catch (error) {
-      console.error('Erro no serviço buscarPorId:', error);
+      console.error('❌ Erro no serviço buscarPorId:', error);
       throw error;
     }
   },
@@ -929,6 +981,73 @@ export const atendimentosService = {
         totalEtapas: 0,
         etapasDisponiveis: []
       };
+    }
+  },
+
+  // Buscar próximo operador da fila
+  async buscarProximoOperadorFila() {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_proximo_operador_fila');
+
+      if (error) {
+        console.error('❌ Erro ao buscar próximo operador da fila:', error);
+        throw error;
+      }
+
+      console.log('✅ Próximo operador da fila:', data);
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('❌ Erro no serviço buscarProximoOperadorFila:', error);
+      throw error;
+    }
+  },
+
+  // Aceitar atendimento aguardando (da fila)
+  async aceitarAtendimentoAguardando(atendimentoId, operadorId) {
+    try {
+      console.log('🔄 Aceitando atendimento aguardando:', { atendimentoId, operadorId });
+
+      const { data, error } = await supabase
+        .rpc('aceitar_atendimento_aguardando', {
+          p_atendimento_id: atendimentoId,
+          p_operador_id: operadorId
+        });
+
+      if (error) {
+        console.error('❌ Erro ao aceitar atendimento aguardando:', error);
+        throw error;
+      }
+
+      console.log('✅ Atendimento aceito:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Erro no serviço aceitarAtendimentoAguardando:', error);
+      throw error;
+    }
+  },
+
+  // Rejeitar atendimento aguardando (passa para o próximo da fila)
+  async rejeitarAtendimentoAguardando(atendimentoId, operadorId) {
+    try {
+      console.log('🔄 Rejeitando atendimento aguardando:', { atendimentoId, operadorId });
+
+      const { data, error } = await supabase
+        .rpc('rejeitar_atendimento_aguardando', {
+          p_atendimento_id: atendimentoId,
+          p_operador_id: operadorId
+        });
+
+      if (error) {
+        console.error('❌ Erro ao rejeitar atendimento aguardando:', error);
+        throw error;
+      }
+
+      console.log('✅ Atendimento rejeitado e passado para próximo da fila:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ Erro no serviço rejeitarAtendimentoAguardando:', error);
+      throw error;
     }
   }
 };
