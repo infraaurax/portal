@@ -243,10 +243,10 @@ export const atualizar = async (id, operadorData) => {
   }
 };
 
-// Alterar habilitação do operador (com suporte à fila)
+// Alterar habilitação do operador (versão simplificada)
 export const alterarHabilitacao = async (id, habilitado) => {
   try {
-    console.log('🔄 [operadoresService] Alterando habilitação com fila:', { id, habilitado });
+    console.log('🔄 [operadoresService] Alterando habilitação:', { id, habilitado });
     console.log('🔍 [operadoresService] Tipo do ID:', typeof id, 'Valor:', id);
     console.log('🔍 [operadoresService] Tipo do habilitado:', typeof habilitado, 'Valor:', habilitado);
     
@@ -255,12 +255,39 @@ export const alterarHabilitacao = async (id, habilitado) => {
       throw new Error('ID do operador é obrigatório');
     }
     
-    // Usar função SQL que gerencia a fila automaticamente
+    // Atualizar diretamente na tabela operadores
+    const updateData = {
+      habilitado: habilitado,
+      online: habilitado, // Se habilitado, também fica online
+      updated_at: new Date().toISOString()
+    };
+    
+    // Se estiver habilitando, adicionar à fila (pos_token)
+    if (habilitado) {
+      // Buscar o próximo token na fila
+      const { data: maxToken } = await supabase
+        .from('operadores')
+        .select('pos_token')
+        .eq('habilitado', true)
+        .order('pos_token', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const nextToken = (maxToken?.pos_token || 0) + 1;
+      updateData.pos_token = nextToken;
+      
+      console.log('📊 [operadoresService] Próximo token na fila:', nextToken);
+    } else {
+      // Se desabilitando, remover da fila
+      updateData.pos_token = null;
+    }
+    
     const { data, error } = await supabase
-      .rpc('toggle_operador_habilitacao', { 
-        p_operador_id: id,
-        p_habilitar: habilitado 
-      });
+      .from('operadores')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) {
       console.error('❌ [operadoresService] Erro ao alterar habilitação:', error);
@@ -274,22 +301,8 @@ export const alterarHabilitacao = async (id, habilitado) => {
     }
 
     console.log('✅ [operadoresService] Habilitação alterada com sucesso:', data);
-    console.log('📊 [operadoresService] Tipo de retorno:', typeof data);
-    console.log('📊 [operadoresService] Dados completos:', JSON.stringify(data, null, 2));
     
-    // Se retornar JSON, extrair os dados
-    if (data && typeof data === 'object' && data.success) {
-      return {
-        id: id,
-        habilitado: habilitado,
-        online: habilitado,
-        pos_token: data.pos_token,
-        success: data.success,
-        message: data.message
-      };
-    }
-    
-    return data && data.length > 0 ? data[0] : data;
+    return data;
   } catch (error) {
     console.error('❌ [operadoresService] Erro no serviço alterarHabilitacao:', error);
     throw error;
