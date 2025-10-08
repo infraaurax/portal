@@ -89,7 +89,8 @@ export const criar = async (operadorData) => {
         data: {
           nome: nome,
           perfil: perfil,
-          cpf: cpf
+          cpf: cpf,
+          senha_temporaria: senhaTemporaria // Incluir senha no metadata para o email
         }
       }
     });
@@ -143,6 +144,16 @@ export const criar = async (operadorData) => {
 
     console.log('✅ [operadoresService] Operador criado automaticamente pelo trigger:', operadorCriado);
 
+    // 4. Enviar senha temporária por email
+    try {
+      console.log('📧 [operadoresService] Enviando senha temporária por email...');
+      await enviarSenhaTemporariaEmail(email, nome, senhaTemporaria);
+      console.log('✅ [operadoresService] Email com senha enviado com sucesso');
+    } catch (emailError) {
+      console.error('⚠️ [operadoresService] Erro ao enviar email com senha:', emailError);
+      // Não bloquear a criação se falhar o email
+    }
+
     return {
       ...operadorCriado,
       senhaTemporaria: senhaTemporaria
@@ -161,6 +172,29 @@ const gerarSenhaTemporaria = () => {
     senha += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return senha;
+};
+
+// Função para enviar senha temporária por email
+const enviarSenhaTemporariaEmail = async (email, nome, senha) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('enviar_senha_temporaria_email', {
+        p_email: email,
+        p_nome: nome,
+        p_senha: senha
+      });
+
+    if (error) {
+      console.error('❌ [operadoresService] Erro ao enviar email:', error);
+      throw error;
+    }
+
+    console.log('✅ [operadoresService] Email enviado:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ [operadoresService] Erro na função enviarSenhaTemporariaEmail:', error);
+    throw error;
+  }
 };
 
 // Atualizar operador

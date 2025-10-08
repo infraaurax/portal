@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, getRedirectUrl } from '../lib/supabase'
 
 export const usuariosService = {
   // Listar usuários
@@ -172,9 +172,7 @@ export const usuariosService = {
         email: email,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: window.location.hostname === 'localhost' 
-            ? 'http://localhost:5173/dashboard' 
-            : 'https://auraxcred.netlify.app/dashboard'
+          emailRedirectTo: getRedirectUrl('/dashboard')
         }
       })
 

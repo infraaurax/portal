@@ -7,13 +7,36 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Variáveis de ambiente do Supabase não configuradas')
 }
 
+// Função para detectar a URL base correta
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+    if (hostname === 'localhost') {
+      return 'http://localhost:5173'
+    } else if (hostname.includes('auraxcred.netlify.app')) {
+      return 'https://auraxcred.netlify.app'
+    } else {
+      return window.location.origin
+    }
+  }
+  return 'https://auraxcred.netlify.app' // fallback para produção
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    // Configurar URL base para redirecionamentos
+    flowType: 'pkce'
   }
 })
+
+// Função para obter URL de redirecionamento correta
+export const getRedirectUrl = (path = '/dashboard') => {
+  const baseUrl = getBaseUrl()
+  return `${baseUrl}${path}`
+}
 
 // Disponibilizar globalmente para scripts de debug
 if (typeof window !== 'undefined') {

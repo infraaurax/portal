@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { buscarPorEmail } from '../services/operadoresService';
-import { supabase } from '../lib/supabase';
+import { supabase, getRedirectUrl } from '../lib/supabase';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import packageJson from '../../package.json';
@@ -106,9 +106,7 @@ const Login = () => {
         email: passwordlessEmail,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: window.location.hostname === 'localhost' 
-            ? 'http://localhost:5173/dashboard' 
-            : 'https://auraxcred.netlify.app/dashboard'
+          emailRedirectTo: getRedirectUrl('/dashboard')
         }
       });
       
@@ -165,9 +163,7 @@ const Login = () => {
         email: forgotPasswordEmail,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: window.location.hostname === 'localhost' 
-            ? 'http://localhost:5173/dashboard' 
-            : 'https://auraxcred.netlify.app/dashboard'
+          emailRedirectTo: getRedirectUrl('/dashboard')
         }
       });
       

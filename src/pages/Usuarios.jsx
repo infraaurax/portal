@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { buscarTodos, criar, atualizar, alterarStatus } from '../services/operadoresService';
-import { supabase } from '../lib/supabase';
+import { supabase, getRedirectUrl } from '../lib/supabase';
 import './PageStyles.css';
 import './Usuarios.css';
 
@@ -210,9 +210,7 @@ const Usuarios = () => {
         email: usuario.email,
         options: {
           shouldCreateUser: false, // Não criar usuário se não existir
-          emailRedirectTo: window.location.hostname === 'localhost' 
-            ? 'http://localhost:5173/dashboard' 
-            : 'https://auraxcred.netlify.app/dashboard'
+          emailRedirectTo: getRedirectUrl('/dashboard')
         }
       });
       
