@@ -521,3 +521,99 @@ BEGIN
   WHERE o.id = p_operador_id;
 END;
 $$;
+
+-- 12. Função para rejeitar atendimento aguardando (com lógica de fila)
+DROP FUNCTION IF EXISTS rejeitar_atendimento_aguardando(TEXT, UUID);
+DROP FUNCTION IF EXISTS rejeitar_atendimento_aguardando(UUID, UUID);
+
+CREATE OR REPLACE FUNCTION rejeitar_atendimento_aguardando(
+  p_atendimento_id TEXT,
+  p_operador_id UUID
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_result JSON;
+  v_total_operadores INTEGER;
+  v_proximo_operador UUID;
+  v_atendimento_uuid UUID;
+BEGIN
+  -- Converter ID do atendimento para UUID
+  v_atendimento_uuid := p_atendimento_id::UUID;
+  
+  -- Contar quantos operadores habilitados existem na fila
+  SELECT COUNT(*) INTO v_total_operadores
+  FROM operadores
+  WHERE habilitado = true AND online = true;
+  
+  -- Se houver apenas 1 operador na fila (o que está rejeitando)
+  IF v_total_operadores <= 1 THEN
+    -- Mudar status para abandonado e remover operador
+    UPDATE atendimentos
+    SET 
+      status = 'abandonado',
+      operador_id = NULL,
+      updated_at = NOW()
+    WHERE id = v_atendimento_uuid;
+    
+    v_result := json_build_object(
+      'success', true,
+      'action', 'abandoned',
+      'message', 'Atendimento marcado como abandonado - apenas 1 operador na fila',
+      'total_operadores', v_total_operadores,
+      'novo_status', 'abandonado',
+      'proximo_operador', NULL
+    );
+    
+  ELSE
+    -- Buscar o próximo operador da fila (que não seja o que está rejeitando)
+    SELECT id INTO v_proximo_operador
+    FROM operadores
+    WHERE habilitado = true 
+      AND online = true 
+      AND id != p_operador_id
+    ORDER BY pos_token ASC
+    LIMIT 1;
+    
+    IF v_proximo_operador IS NULL THEN
+      -- Se não encontrou próximo operador, abandonar
+      UPDATE atendimentos
+      SET 
+        status = 'abandonado',
+        operador_id = NULL,
+        updated_at = NOW()
+      WHERE id = v_atendimento_uuid;
+      
+      v_result := json_build_object(
+        'success', true,
+        'action', 'abandoned',
+        'message', 'Nenhum operador disponível - atendimento abandonado',
+        'total_operadores', v_total_operadores,
+        'novo_status', 'abandonado',
+        'proximo_operador', NULL
+      );
+    ELSE
+      -- Passar atendimento para o próximo operador
+      UPDATE atendimentos
+      SET 
+        status = 'aguardando',
+        operador_id = v_proximo_operador,
+        updated_at = NOW()
+      WHERE id = v_atendimento_uuid;
+      
+      v_result := json_build_object(
+        'success', true,
+        'action', 'reassigned',
+        'message', 'Atendimento passado para o próximo operador da fila',
+        'total_operadores', v_total_operadores,
+        'novo_status', 'aguardando',
+        'proximo_operador', v_proximo_operador
+      );
+    END IF;
+  END IF;
+  
+  RETURN v_result;
+END;
+$$;
