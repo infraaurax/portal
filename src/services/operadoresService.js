@@ -215,6 +215,13 @@ export const atualizar = async (id, operadorData) => {
 export const alterarHabilitacao = async (id, habilitado) => {
   try {
     console.log('🔄 [operadoresService] Alterando habilitação com fila:', { id, habilitado });
+    console.log('🔍 [operadoresService] Tipo do ID:', typeof id, 'Valor:', id);
+    console.log('🔍 [operadoresService] Tipo do habilitado:', typeof habilitado, 'Valor:', habilitado);
+    
+    // Verificar se o ID é válido
+    if (!id) {
+      throw new Error('ID do operador é obrigatório');
+    }
     
     // Usar função SQL que gerencia a fila automaticamente
     const { data, error } = await supabase
@@ -225,13 +232,32 @@ export const alterarHabilitacao = async (id, habilitado) => {
 
     if (error) {
       console.error('❌ [operadoresService] Erro ao alterar habilitação:', error);
+      console.error('❌ [operadoresService] Detalhes do erro:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       throw error;
     }
 
     console.log('✅ [operadoresService] Habilitação alterada com sucesso:', data);
-    console.log('📊 [operadoresService] Token na fila (pos_token):', data?.[0]?.pos_token);
+    console.log('📊 [operadoresService] Tipo de retorno:', typeof data);
+    console.log('📊 [operadoresService] Dados completos:', JSON.stringify(data, null, 2));
     
-    return data && data.length > 0 ? data[0] : null;
+    // Se retornar JSON, extrair os dados
+    if (data && typeof data === 'object' && data.success) {
+      return {
+        id: id,
+        habilitado: habilitado,
+        online: habilitado,
+        pos_token: data.pos_token,
+        success: data.success,
+        message: data.message
+      };
+    }
+    
+    return data && data.length > 0 ? data[0] : data;
   } catch (error) {
     console.error('❌ [operadoresService] Erro no serviço alterarHabilitacao:', error);
     throw error;
