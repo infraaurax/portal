@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, getRedirectUrl } from '../lib/supabase';
 
 // Buscar todos os operadores
 export const buscarTodos = async () => {
@@ -80,7 +80,7 @@ export const criar = async (operadorData) => {
     // Gerar senha temporária
     const senhaTemporaria = gerarSenhaTemporaria();
     
-    // 1. Criar usuário no Supabase Auth
+    // 1. Criar usuário no Supabase Auth (SEM enviar email de confirmação)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email,
       password: senhaTemporaria,
@@ -90,7 +90,7 @@ export const criar = async (operadorData) => {
           nome: nome,
           perfil: perfil,
           cpf: cpf,
-          senha_temporaria: senhaTemporaria // Incluir senha no metadata para o email
+          senha_temporaria: senhaTemporaria
         }
       }
     });
@@ -144,14 +144,15 @@ export const criar = async (operadorData) => {
 
     console.log('✅ [operadoresService] Operador criado automaticamente pelo trigger:', operadorCriado);
 
-    // 4. Enviar senha temporária por email
+    // 4. Enviar magic link com senha por email
     try {
-      console.log('📧 [operadoresService] Enviando senha temporária por email...');
-      await enviarSenhaTemporariaEmail(email, nome, senhaTemporaria);
-      console.log('✅ [operadoresService] Email com senha enviado com sucesso');
+      console.log('📧 [operadoresService] Enviando magic link com senha temporária...');
+      await enviarMagicLinkComSenha(email, nome, senhaTemporaria, cpf, perfil);
+      console.log('✅ [operadoresService] Magic link com senha enviado com sucesso');
     } catch (emailError) {
-      console.error('⚠️ [operadoresService] Erro ao enviar email com senha:', emailError);
+      console.error('⚠️ [operadoresService] Erro ao enviar email:', emailError);
       // Não bloquear a criação se falhar o email
+      console.log('ℹ️ [operadoresService] Senha pode ser compartilhada manualmente:', senhaTemporaria);
     }
 
     return {
@@ -174,25 +175,34 @@ const gerarSenhaTemporaria = () => {
   return senha;
 };
 
-// Função para enviar senha temporária por email
-const enviarSenhaTemporariaEmail = async (email, nome, senha) => {
+// Função para enviar magic link com senha por email
+const enviarMagicLinkComSenha = async (email, nome, senha, cpf, perfil) => {
   try {
-    const { data, error } = await supabase
-      .rpc('enviar_senha_temporaria_email', {
-        p_email: email,
-        p_nome: nome,
-        p_senha: senha
-      });
+    // Enviar magic link com informações personalizadas no metadata
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: 'https://auraxcred.netlify.app/dashboard', // URL fixa para produção
+        data: {
+          nome: nome,
+          senha_temporaria: senha,
+          cpf: cpf,
+          perfil: perfil,
+          tipo_email: 'boas_vindas'
+        }
+      }
+    });
 
     if (error) {
-      console.error('❌ [operadoresService] Erro ao enviar email:', error);
+      console.error('❌ [operadoresService] Erro ao enviar magic link:', error);
       throw error;
     }
 
-    console.log('✅ [operadoresService] Email enviado:', data);
+    console.log('✅ [operadoresService] Magic link enviado:', data);
     return data;
   } catch (error) {
-    console.error('❌ [operadoresService] Erro na função enviarSenhaTemporariaEmail:', error);
+    console.error('❌ [operadoresService] Erro na função enviarMagicLinkComSenha:', error);
     throw error;
   }
 };
