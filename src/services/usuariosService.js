@@ -165,21 +165,27 @@ export const usuariosService = {
     }
   },
 
-  // Resetar senha do usuário
-  async resetarSenha(email) {
+  // Enviar magic link para o usuário
+  async enviarMagicLink(email) {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/change-password`
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: window.location.hostname === 'localhost' 
+            ? 'http://localhost:5173/dashboard' 
+            : 'https://auraxcred.netlify.app/dashboard'
+        }
       })
 
       if (error) {
-        console.error('Erro ao resetar senha:', error)
+        console.error('Erro ao enviar magic link:', error)
         throw error
       }
 
-      return { success: true, message: 'Email de recuperação enviado' }
+      return { success: true, message: 'Magic link enviado com sucesso' }
     } catch (error) {
-      console.error('Erro ao resetar senha:', error)
+      console.error('Erro ao enviar magic link:', error)
       throw error
     }
   },

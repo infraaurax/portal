@@ -101,11 +101,14 @@ const Login = () => {
         return;
       }
       
-      // Enviar código de verificação via email
+      // Enviar magic link
       const { data, error } = await supabase.auth.signInWithOtp({
         email: passwordlessEmail,
         options: {
-          shouldCreateUser: false
+          shouldCreateUser: false,
+          emailRedirectTo: window.location.hostname === 'localhost' 
+            ? 'http://localhost:5173/dashboard' 
+            : 'https://auraxcred.netlify.app/dashboard'
         }
       });
       
@@ -157,9 +160,15 @@ const Login = () => {
         return;
       }
       
-      // Enviar email de reset de senha
-      const { data, error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
-        redirectTo: `${window.location.origin}/reset-password`
+      // Enviar magic link
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: forgotPasswordEmail,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: window.location.hostname === 'localhost' 
+            ? 'http://localhost:5173/dashboard' 
+            : 'https://auraxcred.netlify.app/dashboard'
+        }
       });
       
       if (error) {
@@ -352,10 +361,7 @@ const Login = () => {
                 'Entrar'
               )}
             </button>
-            
-            <a href="#" className="forgot-password-link" onClick={(e) => { e.preventDefault(); handleForgotPassword(); }}>
-              Esqueceu sua senha?
-            </a>
+           
             
             <button 
               type="button" 

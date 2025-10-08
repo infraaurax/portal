@@ -88,7 +88,8 @@ export const criar = async (operadorData) => {
         emailRedirectTo: undefined,
         data: {
           nome: nome,
-          perfil: perfil
+          perfil: perfil,
+          cpf: cpf
         }
       }
     });
@@ -116,47 +117,34 @@ export const criar = async (operadorData) => {
       throw authError;
     }
 
-    // 3. Criar registro na tabela operadores (inicialmente desabilitado)
-    const { data, error } = await supabase
+    // 3. Aguardar o trigger criar o operador automaticamente
+    console.log('🔄 [operadoresService] Aguardando trigger criar operador automaticamente...');
+    
+    // Aguardar um pouco para o trigger processar
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Buscar o operador criado pelo trigger
+    const { data: operadorCriado, error: buscaError } = await supabase
       .from('operadores')
-      .insert({
-        id: authData.user.id,
-        nome: nome,
-        email: email,
-        cpf: cpf,
-        perfil: perfil,
-        status: 'Ativo',
-        habilitado: false  // Criar desabilitado inicialmente
-      })
-      .select()
+      .select('*')
+      .eq('id', authData.user.id)
       .single();
 
-    if (error) {
-      console.error('Erro ao criar operador na tabela:', error);
-      // Se falhar ao criar na tabela, tentar remover do Auth
+    if (buscaError || !operadorCriado) {
+      console.error('❌ [operadoresService] Erro: Trigger não criou o operador automaticamente');
+      // Se o trigger falhou, tentar remover do Auth
       try {
         await supabase.auth.admin.deleteUser(authData.user.id);
       } catch (cleanupError) {
         console.error('Erro ao limpar usuário do Auth:', cleanupError);
       }
-      throw error;
+      throw new Error('Falha ao criar operador automaticamente');
     }
 
-    // 4. Se for operador, habilitar para entrar na fila
-    let operadorFinal = data;
-    if (perfil === 'Operador') {
-      try {
-        console.log('🔄 [operadoresService] Habilitando operador recém-criado na fila...');
-        operadorFinal = await alterarHabilitacao(authData.user.id, true);
-        console.log('✅ [operadoresService] Operador adicionado à fila com pos_token:', operadorFinal?.pos_token);
-      } catch (habilitacaoError) {
-        console.error('⚠️ [operadoresService] Erro ao habilitar operador na fila:', habilitacaoError);
-        // Não bloqueia a criação se falhar a habilitação
-      }
-    }
+    console.log('✅ [operadoresService] Operador criado automaticamente pelo trigger:', operadorCriado);
 
     return {
-      ...operadorFinal,
+      ...operadorCriado,
       senhaTemporaria: senhaTemporaria
     };
   } catch (error) {
@@ -267,6 +255,18 @@ export const alterarHabilitacao = async (id, habilitado) => {
 // Bloquear/Desbloquear operador (alterar status)
 export const alterarStatus = async (id, status) => {
   try {
+    console.log('🔄 [operadoresService] Alterando status do operador:', { id, status });
+    
+    // Verificar se o ID é válido
+    if (!id) {
+      throw new Error('ID do operador é obrigatório');
+    }
+    
+    // Verificar se o status é válido
+    if (!status || (status !== 'ativo' && status !== 'inativo')) {
+      throw new Error('Status deve ser "ativo" ou "inativo"');
+    }
+    
     const { data, error } = await supabase
       .from('operadores')
       .update({ 
@@ -278,13 +278,20 @@ export const alterarStatus = async (id, status) => {
       .single();
 
     if (error) {
-      console.error('Erro ao alterar status do operador:', error);
+      console.error('❌ [operadoresService] Erro ao alterar status do operador:', error);
+      console.error('❌ [operadoresService] Detalhes do erro:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
       throw error;
     }
 
+    console.log('✅ [operadoresService] Status alterado com sucesso:', data);
     return data;
   } catch (error) {
-    console.error('Erro no serviço alterarStatus:', error);
+    console.error('❌ [operadoresService] Erro no serviço alterarStatus:', error);
     throw error;
   }
 };

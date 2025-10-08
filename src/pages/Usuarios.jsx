@@ -31,7 +31,7 @@ const Usuarios = () => {
           email: operador.email,
           cpf: operador.cpf || '-',
           perfil: operador.perfil || operador.tipo || 'Operador',
-          status: operador.habilitado ? 'Ativo' : 'Bloqueado',
+          status: operador.status === 'ativo' ? 'Ativo' : 'Bloqueado',
           dataCriacao: operador.data_criacao || operador.created_at,
           ultimoAcesso: operador.ultimo_acesso || '-'
         }));
@@ -114,7 +114,7 @@ const Usuarios = () => {
           email: novoOperador.email,
           cpf: novoOperador.cpf || '-',
           perfil: novoOperador.perfil || 'Operador',
-          status: novoOperador.habilitado ? 'Ativo' : 'Bloqueado',
+          status: novoOperador.status === 'ativo' ? 'Ativo' : 'Bloqueado',
           dataCriacao: novoOperador.created_at,
           ultimoAcesso: '-'
         };
@@ -172,6 +172,13 @@ const Usuarios = () => {
       const novoStatus = selectedUser.status === 'Ativo' ? 'inativo' : 'ativo';
       const novoStatusInterface = selectedUser.status === 'Ativo' ? 'Bloqueado' : 'Ativo';
       
+      console.log('🔄 [Usuarios] Alterando status:', {
+        usuario: selectedUser.nome,
+        statusAtual: selectedUser.status,
+        novoStatusBanco: novoStatus,
+        novoStatusInterface: novoStatusInterface
+      });
+      
       // Atualizar status na tabela operadores
       await alterarStatus(selectedUser.id, novoStatus);
       
@@ -196,21 +203,28 @@ const Usuarios = () => {
 
   const handleResendPassword = async (usuario) => {
     try {
-      setStatusMessage('Enviando email de reset de senha...');
+      setStatusMessage('Enviando magic link...');
       
-      const { error } = await supabase.auth.resetPasswordForEmail(usuario.email, {
-        redirectTo: `${window.location.origin}/change-password`
+      // Usar magic link em vez de reset de senha
+      const { error } = await supabase.auth.signInWithOtp({
+        email: usuario.email,
+        options: {
+          shouldCreateUser: false, // Não criar usuário se não existir
+          emailRedirectTo: window.location.hostname === 'localhost' 
+            ? 'http://localhost:5173/dashboard' 
+            : 'https://auraxcred.netlify.app/dashboard'
+        }
       });
       
       if (error) {
-        console.error('Erro ao enviar email de reset:', error);
-        setStatusMessage(`Erro ao enviar email: ${error.message}`);
+        console.error('Erro ao enviar magic link:', error);
+        setStatusMessage(`Erro ao enviar magic link: ${error.message}`);
       } else {
-        setStatusMessage(`Email de reset de senha enviado para ${usuario.email}!`);
+        setStatusMessage(`Magic link enviado para ${usuario.email}!`);
       }
     } catch (error) {
       console.error('Erro inesperado:', error);
-      setStatusMessage('Erro inesperado ao enviar email de reset.');
+      setStatusMessage('Erro inesperado ao enviar magic link.');
     }
     
     setTimeout(() => setStatusMessage(''), 5000);
@@ -334,7 +348,7 @@ const Usuarios = () => {
                       onClick={() => handleResendPassword(usuario)}
                       className={`btn-resend ${usuario.ultimoAcesso === '-' ? 'enabled' : 'disabled'}`}
                       disabled={usuario.ultimoAcesso !== '-'}
-                      title={usuario.ultimoAcesso === '-' ? 'Reenviar primeira senha' : 'Usuário já acessou o sistema'}
+                      title={usuario.ultimoAcesso === '-' ? 'Enviar magic link (primeiro acesso)' : 'Enviar magic link'}
                     >
                       📧
                     </button>
