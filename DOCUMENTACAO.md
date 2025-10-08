@@ -6,7 +6,7 @@ O Portal de Atendimentos AURAX é uma aplicação web desenvolvida em React para
 
 ## Informações Técnicas
 
-- **Versão:** 0.0.2
+- **Versão:** 0.0.16
 - **Framework:** React 19.1.0
 - **Roteamento:** React Router DOM 7.7.1
 - **Build Tool:** Vite 7.0.4
@@ -15,6 +15,19 @@ O Portal de Atendimentos AURAX é uma aplicação web desenvolvida em React para
 - **Autenticação:** Supabase Auth
 - **Banco de Dados:** PostgreSQL via Supabase
 - **Storage:** Supabase Storage para documentos/imagens
+
+## Changelog
+
+### Versão 0.0.16 (Atual)
+- ✅ **Magic Link**: Implementado sistema de acesso sem senha via magic link
+- ✅ **Trigger Automático**: Criado trigger para criar operador automaticamente quando usuário é criado no auth
+- ✅ **URLs Dinâmicas**: Corrigido redirecionamento para produção (auraxcred.netlify.app)
+- ✅ **Função de Rejeição**: Implementada lógica para marcar atendimentos como abandonados quando apenas 1 operador na fila
+- ✅ **Correção de Status**: Corrigido mapeamento de status na interface de usuários
+- ✅ **Logs Melhorados**: Adicionados logs detalhados para debug das funções
+
+### Versão 0.0.15
+- Funcionalidades anteriores do sistema
 
 ## Estrutura do Projeto
 
@@ -449,7 +462,7 @@ Execute os scripts SQL na seguinte ordem:
 
 ---
 
-**Desenvolvido por FF Consultoria TECH** | **Versão 0.0.2** | **2025**
+**Desenvolvido por FF Consultoria TECH** | **Versão 0.0.16** | **2025**
 
 *Documentação atualizada em: Janeiro 2025*  
-*Última funcionalidade adicionada: Filtros Admin para Atendimentos*
+*Última funcionalidade adicionada: Magic Link e Trigger Automático*
