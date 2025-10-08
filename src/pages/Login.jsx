@@ -106,7 +106,7 @@ const Login = () => {
         email: passwordlessEmail,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: getRedirectUrl('/dashboard')
+          emailRedirectTo: 'https://auraxcred.netlify.app/dashboard' // URL fixa para produção
         }
       });
       
@@ -163,7 +163,7 @@ const Login = () => {
         email: forgotPasswordEmail,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: getRedirectUrl('/dashboard')
+          emailRedirectTo: 'https://auraxcred.netlify.app/dashboard' // URL fixa para produção
         }
       });
       

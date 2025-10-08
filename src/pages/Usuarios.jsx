@@ -11,6 +11,7 @@ const Usuarios = () => {
   const [modalType, setModalType] = useState('create'); // 'create', 'edit', 'block'
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [filterProfile, setFilterProfile] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [statusMessage, setStatusMessage] = useState('');
@@ -201,6 +202,14 @@ const Usuarios = () => {
     handleCloseModal();
   };
 
+  // Função para mostrar toast
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success' });
+    }, 4000);
+  };
+
   const handleResendPassword = async (usuario) => {
     try {
       setStatusMessage('Enviando magic link...');
@@ -210,19 +219,22 @@ const Usuarios = () => {
         email: usuario.email,
         options: {
           shouldCreateUser: false, // Não criar usuário se não existir
-          emailRedirectTo: getRedirectUrl('/dashboard')
+          emailRedirectTo: 'https://auraxcred.netlify.app/dashboard' // URL fixa para produção
         }
       });
       
       if (error) {
         console.error('Erro ao enviar magic link:', error);
         setStatusMessage(`Erro ao enviar magic link: ${error.message}`);
+        showToast(`Erro ao enviar magic link: ${error.message}`, 'error');
       } else {
         setStatusMessage(`Magic link enviado para ${usuario.email}!`);
+        showToast(`✅ Magic link enviado com sucesso para ${usuario.email}!`, 'success');
       }
     } catch (error) {
       console.error('Erro inesperado:', error);
       setStatusMessage('Erro inesperado ao enviar magic link.');
+      showToast('❌ Erro inesperado ao enviar magic link.', 'error');
     }
     
     setTimeout(() => setStatusMessage(''), 5000);
@@ -464,6 +476,21 @@ const Usuarios = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`toast toast-${toast.type}`}>
+          <div className="toast-content">
+            <span className="toast-message">{toast.message}</span>
+            <button 
+              className="toast-close" 
+              onClick={() => setToast({ show: false, message: '', type: 'success' })}
+            >
+              ×
+            </button>
           </div>
         </div>
       )}

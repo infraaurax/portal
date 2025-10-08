@@ -172,7 +172,7 @@ export const usuariosService = {
         email: email,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: getRedirectUrl('/dashboard')
+          emailRedirectTo: 'https://auraxcred.netlify.app/dashboard' // URL fixa para produção
         }
       })
 
