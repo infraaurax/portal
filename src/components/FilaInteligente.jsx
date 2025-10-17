@@ -12,7 +12,11 @@ const FilaInteligente = () => {
   const [modalAtribuir, setModalAtribuir] = useState(false);
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
   const [operadoresDisponiveis, setOperadoresDisponiveis] = useState([]);
-  const [distribuicaoAutomaticaAtiva, setDistribuicaoAutomaticaAtiva] = useState(false);
+  const [distribuicaoAutomaticaAtiva, setDistribuicaoAutomaticaAtiva] = useState(() => {
+    // Recuperar estado salvo do localStorage
+    const saved = localStorage.getItem('distribuicaoAutomaticaAtiva');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
 
   // Buscar atendimentos aguardando
   const carregarAtendimentosAguardando = async () => {
@@ -125,6 +129,11 @@ const FilaInteligente = () => {
     }
   };
 
+  // Salvar estado da distribuição automática no localStorage
+  useEffect(() => {
+    localStorage.setItem('distribuicaoAutomaticaAtiva', JSON.stringify(distribuicaoAutomaticaAtiva));
+  }, [distribuicaoAutomaticaAtiva]);
+
   // Auto-refresh a cada 10 segundos
   useEffect(() => {
     if (autoRefresh) {
@@ -133,26 +142,29 @@ const FilaInteligente = () => {
     }
   }, [autoRefresh]);
 
-  // Buscar dados iniciais e iniciar distribuição automática
+  // Buscar dados iniciais e iniciar distribuição automática se estava ativa
   useEffect(() => {
     console.log('🚀 Componente FilaInteligente montado');
     carregarAtendimentosAguardando();
     
-    // Iniciar distribuição automática após 2 segundos
-    const timer = setTimeout(() => {
-      console.log('🤖 Iniciando distribuição automática...');
-      iniciarDistribuicaoAutomatica();
-    }, 2000);
+    // Iniciar distribuição automática após 2 segundos apenas se estava ativa
+    if (distribuicaoAutomaticaAtiva) {
+      const timer = setTimeout(() => {
+        console.log('🤖 Iniciando distribuição automática (estado salvo)...');
+        iniciarDistribuicaoAutomatica();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
 
     // Cleanup: parar distribuição automática quando componente for desmontado
     return () => {
-      clearTimeout(timer);
       if (atendimentosService.isDistribuicaoAutomaticaAtiva()) {
         console.log('🧹 Limpando distribuição automática...');
         atendimentosService.pararDistribuicaoAutomatica();
       }
     };
-  }, []);
+  }, [distribuicaoAutomaticaAtiva]);
 
   // Log quando atendimentos são carregados
   useEffect(() => {

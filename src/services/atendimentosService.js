@@ -1039,19 +1039,19 @@ export const atendimentosService = {
         throw new Error(`Operador não está disponível. Status atual: ${operador.status}`);
       }
 
-      // Aceitar o atendimento
-      const { error: errorUpdate } = await supabase
-        .from('atendimentos')
-        .update({
-          status: 'em-andamento',
-          operador_id: operadorId,
-          data_inicio: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', atendimentoId);
+      // Aceitar o atendimento usando a função SQL que também atualiza a fila
+      const { data: resultado, error: errorUpdate } = await supabase
+        .rpc('aceitar_atendimento_fila', {
+          p_atendimento_id: atendimentoId,
+          p_operador_id: operadorId
+        });
 
       if (errorUpdate) {
         throw errorUpdate;
+      }
+
+      if (resultado && !resultado.success) {
+        throw new Error(resultado.error || 'Erro ao aceitar atendimento');
       }
 
       // Nota: Status do operador não é alterado para 'ocupado' automaticamente

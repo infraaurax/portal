@@ -874,6 +874,43 @@ const Dashboard = () => {
     }
   };
 
+  // Função para interromper IA (muda status para em-andamento)
+  const interromperIA = async () => {
+    if (!atendimentoSelecionado) {
+      alert('Selecione um atendimento primeiro.');
+      return;
+    }
+
+    try {
+      console.log('🤖 Interrompendo IA para atendimento:', atendimentoSelecionado.id);
+      
+      // Atualizar status do atendimento para 'em-andamento'
+      await atendimentosService.atualizarStatus(atendimentoSelecionado.id, 'em-andamento');
+      
+      // Atualizar estado local
+      setAtendimentoSelecionado({
+        ...atendimentoSelecionado,
+        status: 'em-andamento'
+      });
+      
+      // Atualizar lista de atendimentos
+      setAtendimentos(prevAtendimentos => 
+        prevAtendimentos.map(atendimento => 
+          atendimento.id === atendimentoSelecionado.id 
+            ? { ...atendimento, status: 'em-andamento' }
+            : atendimento
+        )
+      );
+      
+      console.log('✅ IA interrompida com sucesso - atendimento em andamento');
+      alert('IA interrompida! O atendimento agora está em andamento.');
+      
+    } catch (error) {
+      console.error('❌ Erro ao interromper IA:', error);
+      alert('Erro ao interromper a IA. Tente novamente.');
+    }
+  };
+
   // Função para cancelar edição de nome
   const cancelarEdicaoNome = () => {
     setModalEditarNome(false);
@@ -1627,6 +1664,13 @@ const Dashboard = () => {
                       onClick={() => abrirModalInformacoes(atendimentoSelecionado)}
                     >
                        Informações
+                    </button>
+                    <button 
+                      className="btn-action btn-interromper-ia"
+                      onClick={interromperIA}
+                      title="Interromper IA e assumir atendimento"
+                    >
+                      🤖 Interromper IA
                     </button>
                   </div>
                 </div>

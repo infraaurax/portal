@@ -152,11 +152,11 @@ BEGIN
             updated_at = NOW()
         WHERE id = rec.fila_id;
 
-        -- Atualizar o atendimento para status aguardando
+        -- Atualizar o atendimento para status aguardando (SEM atribuir operador_id)
+        -- O operador_id só será atribuído quando o operador aceitar pela modal
         UPDATE atendimentos
         SET 
             status = 'aguardando',
-            operador_id = rec.operador_id,
             updated_at = NOW()
         WHERE id = rec.atendimento_id;
 
@@ -272,6 +272,9 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    v_fila_updated INTEGER;
+    v_atendimento_updated INTEGER;
 BEGIN
     -- Atualizar registro na fila
     UPDATE fila_atendimentos
@@ -280,20 +283,40 @@ BEGIN
         updated_at = NOW()
     WHERE atendimento_id = p_atendimento_id
     AND operador_id = p_operador_id;
+    
+    GET DIAGNOSTICS v_fila_updated = ROW_COUNT;
+    
+    IF v_fila_updated = 0 THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Atendimento não encontrado na fila ou não está oferecido para este operador'
+        );
+    END IF;
 
-    -- Atualizar atendimento
+    -- Atualizar atendimento e atribuir operador
     UPDATE atendimentos
     SET 
         status = 'em-andamento',
+        operador_id = p_operador_id,
         data_inicio = NOW(),
         updated_at = NOW()
     WHERE id = p_atendimento_id;
+    
+    GET DIAGNOSTICS v_atendimento_updated = ROW_COUNT;
+    
+    IF v_atendimento_updated = 0 THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Atendimento não encontrado'
+        );
+    END IF;
 
     -- Remover da fila (atendimento aceito)
     DELETE FROM fila_atendimentos
     WHERE atendimento_id = p_atendimento_id;
 
     RETURN jsonb_build_object(
+        'success', true,
         'status', 'aceito',
         'atendimento_id', p_atendimento_id,
         'operador_id', p_operador_id

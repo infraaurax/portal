@@ -805,6 +805,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  width: 9rem;
 }
 
 .status-badge {
@@ -1011,6 +1012,19 @@
 
 .btn-info:hover {
   background: #1a1548;
+  color: white;
+}
+
+.btn-interromper-ia {
+  background: #ff6b35;
+  color: white;
+  display: flex;
+  justify-content: center;
+  margin-left: 8px;
+}
+
+.btn-interromper-ia:hover {
+  background: #e55a2b;
   color: white;
 }
 
