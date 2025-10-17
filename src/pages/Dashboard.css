@@ -45,9 +45,9 @@
 }
 
 .btn-warning {
-  background-color: #ffc107;
-  color: #212529;
-  border: 1px solid #ffc107;
+  background-color: #fbdddd;
+  color: #292929;
+  border: 1px solid #fbdddd;
   padding: 10px 20px;
   border-radius: 6px;
   font-size: 0.9rem;
@@ -61,9 +61,10 @@
 }
 
 .btn-warning:hover:not(:disabled) {
-  background-color: #e0a800;
-  border-color: #d39e00;
+  background-color: #f14b4b;
+  border-color: #ea580c;
   transform: translateY(-1px);
+  color: white;
 }
 
 .btn-warning:disabled {
@@ -75,9 +76,9 @@
 }
 
 .btn-timer {
-  background-color: #17a2b8;
+  background-color: #3b82f6;
   color: white;
-  border: 1px solid #17a2b8;
+  border: 1px solid #3b82f6;
   padding: 10px 20px;
   border-radius: 6px;
   font-size: 0.9rem;
@@ -307,7 +308,7 @@
 
 .confirmacao-info {
   font-size: 1.5rem;
-  color: #17a2b8;
+  color: #3b82f6;
   margin: 0;
   line-height: 1.4;
   font-weight: 400;
@@ -575,12 +576,12 @@
     flex-direction: column;
     gap: 12px;
   }
-  
+
   .search-container,
   .filter-container {
     flex: 1;
   }
-  
+
   .search-container:focus-within,
   .filter-container:focus-within {
     flex: 1;
@@ -594,12 +595,13 @@
 
 .atendimento-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 16px 20px;
   border-bottom: 1px solid #f0f2f5;
   cursor: pointer;
   transition: background-color 0.2s ease;
   position: relative;
+  height: 11.8rem;
 }
 
 .atendimento-item.has-new-messages {
@@ -689,25 +691,29 @@
 }
 
 .atendimento-avatar {
-    width: 4rem;
-    height: 9rem;
-    border-bottom-left-radius: 1rem;
-    background: #221C62;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    font-size: 0.9rem;
-    display: flex
-;
-    flex-direction: column;
-    border-top-left-radius: 1rem;
+  width: 4rem;
+  height: 8.7rem;
+  border-bottom-left-radius: 1rem;
+  background: #221C62;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  border-top-left-radius: 1rem;
 }
 
 
 .atendimento-info {
-  flex: 1;
-  min-width: 0;
+  background: #f9fafb;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-bottom-right-radius: 8px;
+  border-top-right-radius: 8px;
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
 }
 
 .atendimento-header {
@@ -716,6 +722,7 @@
   align-items: flex-start;
   margin-bottom: 5px;
   flex-direction: column;
+  width: 100%;
 }
 
 .atendimento-nome-id {
@@ -729,6 +736,19 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+}
+
+.atendimento-nome-time .atendimento-codigo {
+  background: #f3f4f6;
+  color: #374151;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin: 0;
+  display: inline-block;
+  order: 2;
+  flex-basis: 100%;
 }
 
 .atendimento-codigo {
@@ -822,6 +842,12 @@
   background: #fff3e0;
   color: #ef6c00;
   border: 1px solid #ff9800;
+}
+
+.status-transferindo {
+  background: #e8eaf6;
+  color: #3f51b5;
+  border: 1px solid #5c6bc0;
 }
 
 .status-novo {
@@ -977,13 +1003,10 @@
 }
 
 .btn-info {
-  background: #221C62;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  font-size: 0.85rem;
-  font-weight: 500;
+    background: #221C62;
+    color: white;
+    display: flex;
+    justify-content: center;
 }
 
 .btn-info:hover {
@@ -1263,6 +1286,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1666,7 +1690,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: linear-gradient(to bottom, #221C62, #e9edef);
+  background: #221C62;
 }
 
 .timeline-item {
@@ -2265,7 +2289,7 @@
 
 .timer-progress {
   height: 100%;
-  background: linear-gradient(90deg, #ef4444 0%, #f97316 50%, #eab308 100%);
+  background: #f97316;
   transition: width 1s linear;
   border-radius: 3px;
 }
@@ -2619,7 +2643,7 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: #007bff;
+  background: #3b82f6;
   color: white;
   border-radius: 6px;
   margin-right: 12px;
@@ -2628,21 +2652,21 @@
 
 /* Ícones específicos por tipo de arquivo */
 .document-icon .pdf-icon {
-  color: #dc3545;
+  color: #dc2626;
 }
 
 .document-icon:has(.pdf-icon) {
   background: #fff;
-  border: 1px solid #dc3545;
+  border: 1px solid #dc2626;
 }
 
 .document-icon .word-icon {
-  color: #007bff;
+  color: #3b82f6;
 }
 
 .document-icon:has(.word-icon) {
   background: #fff;
-  border: 1px solid #007bff;
+  border: 1px solid #3b82f6;
 }
 
 .document-icon .excel-icon {
@@ -2750,7 +2774,7 @@
 .btn-download {
   display: inline-block;
   padding: 4px 12px;
-  background: #007bff;
+  background: #3b82f6;
   color: white;
   text-decoration: none;
   border-radius: 4px;
@@ -2760,7 +2784,7 @@
 }
 
 .btn-download:hover {
-  background: #0056b3;
+  background: #2563eb;
   color: white;
   text-decoration: none;
 }
@@ -2795,11 +2819,11 @@
   .message-image {
     max-width: 250px;
   }
-  
+
   .document-container {
     max-width: 280px;
   }
-  
+
   .chat-image {
     max-width: 100%;
   }
@@ -2864,11 +2888,14 @@
 }
 
 @keyframes pulseUrgent {
-  0%, 100% { 
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
-  50% { 
+
+  50% {
     opacity: 0.8;
     transform: scale(1.05);
   }
@@ -2931,8 +2958,8 @@
 .cliente-dados-aguardando .status-badge {
   display: inline-block;
   padding: 4px 12px;
-  background: #ffc107;
-  color: #212529;
+  background: #f97316;
+  color: white;
   border-radius: 12px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -3033,6 +3060,7 @@
     opacity: 0;
     transform: translateY(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -3087,5 +3115,16 @@
   .btn-aceitar-aguardando {
     width: 100%;
     justify-content: center;
+  }
+}
+
+/* Seção de Atendimentos Pendentes do Operador */
+.atendimentos-pendentes-section {
+}
+
+@media (max-width: 768px) {
+  .atendimentos-pendentes-section {
+    padding: 0 1rem;
+    margin-bottom: 1rem;
   }
 }

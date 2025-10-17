@@ -13,6 +13,8 @@ const Layout = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [operadorData, setOperadorData] = useState(null);
   const [profileForm, setProfileForm] = useState({ nome: '', email: '', cpf: '' });
   const [passwordForm, setPasswordForm] = useState({
@@ -25,6 +27,7 @@ const Layout = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [notifications, setNotifications] = useState([]);
   
   // Log para verificar dados do usuário no Layout
   console.log('🖥️ [Layout] Dados do usuário recebidos:', user);
@@ -59,7 +62,7 @@ const Layout = () => {
     { path: '/atendimentos-nao-finalizados', label: 'Atendimentos não Finalizados', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>, allowedProfiles: ['Admin', 'Operador'] },
     { path: '/perguntas-nao-respondidas', label: 'Perguntas não Respondidas', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m9,9a3,3 0 1,1 6,0c0,2 -3,3 -3,3"/><path d="m12,17 l.01,0"/></svg>, allowedProfiles: ['Admin'] },
     { path: '/usuarios', label: 'Usuários', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m22 21v-2a4 4 0 0 0-3-3.87"/><path d="m16 3.13a4 4 0 0 1 0 7.75"/></svg>, allowedProfiles: ['Admin'] },
-    { path: '/monitoramento-operadores', label: 'Monitoramento de Operadores', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/><circle cx="12" cy="12" r="10"/></svg>, allowedProfiles: ['Admin'] },
+    { path: '/monitoramento-operadores', label: 'Monitoramento', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/><circle cx="12" cy="12" r="10"/></svg>, allowedProfiles: ['Admin'] },
     { path: '/categorias', label: 'Categorias', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>, allowedProfiles: ['Admin'] },
   ];
 
@@ -173,6 +176,51 @@ const Layout = () => {
     setShowPasswordModal(true);
   };
 
+  const handleTestClick = () => {
+    setShowProfileModal(false);
+    setShowTestModal(true);
+  };
+
+  const handleCloseTestModal = () => {
+    setShowTestModal(false);
+  };
+
+  const handleNotificationsClick = () => {
+    setShowNotificationsModal(true);
+  };
+
+  const handleCloseNotificationsModal = () => {
+    setShowNotificationsModal(false);
+  };
+
+  // Simular notificações (em um caso real, isso viria do backend)
+  useEffect(() => {
+    // Exemplo de notificações
+    const mockNotifications = [
+      {
+        id: 1,
+        title: 'Novo atendimento atribuído',
+        message: 'Você tem um novo atendimento aguardando sua resposta.',
+        time: '2 min atrás',
+        type: 'assignment',
+        read: false
+      },
+      {
+        id: 2,
+        title: 'Sistema atualizado',
+        message: 'O sistema foi atualizado para a versão 1.2.0.',
+        time: '1 hora atrás',
+        type: 'system',
+        read: true
+      }
+    ];
+    
+    // Só adicionar notificações se for operador e tiver atendimentos habilitados
+    if (operadorData?.perfil === 'Operador' && atendimentoHabilitado) {
+      setNotifications(mockNotifications);
+    }
+  }, [operadorData, atendimentoHabilitado]);
+
   // Gerar iniciais para o avatar
   const getInitials = (nome) => {
     if (!nome) return 'U';
@@ -212,6 +260,20 @@ const Layout = () => {
         
         <div className="header-right">
           <div className="user-section">
+            {/* Ícone de notificações - só aparece para operadores */}
+            {operadorData?.perfil === 'Operador' && (
+              <div className="notifications-icon" onClick={handleNotificationsClick} title="Notificações">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="notification-badge">
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </div>
+            )}
             <div className="user-avatar" onClick={handleAvatarClick} title="Clique para ver perfil">
               {getInitials(userData.name)}
             </div>
@@ -291,6 +353,13 @@ const Layout = () => {
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
                 Editar Perfil
+              </button>
+              
+              <button className="btn-test" onClick={handleTestClick}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-4m-4-4v4m0 0l3-3m-3 3L9 8"/>
+                </svg>
+                Testes do Sistema
               </button>
               
               <button className="btn-logout" onClick={handleLogout}>
@@ -478,6 +547,99 @@ const Layout = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Testes */}
+      {showTestModal && (
+        <div className="modal-overlay" onClick={handleCloseTestModal}>
+          <div className="test-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Testes do Sistema</h3>
+              <button className="close-button" onClick={handleCloseTestModal}>
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <p>Componente de testes removido.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Notificações */}
+      {showNotificationsModal && (
+        <div className="modal-overlay" onClick={handleCloseNotificationsModal}>
+          <div className="notifications-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Notificações</h3>
+              <div className="modal-header-actions">
+                {notifications.length > 0 && (
+                  <button 
+                    className="clear-notifications-btn" 
+                    onClick={() => setNotifications([])}
+                    title="Limpar todas as notificações"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18"/>
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                    </svg>
+                    Limpar
+                  </button>
+                )}
+                <button className="close-button" onClick={handleCloseNotificationsModal}>
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            <div className="modal-body">
+              {notifications.length === 0 ? (
+                <div className="no-notifications">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                  <p>Nenhuma notificação no momento</p>
+                </div>
+              ) : (
+                <div className="notifications-list">
+                  {notifications.map((notification) => (
+                    <div key={notification.id} className={`notification-item ${notification.read ? 'read' : 'unread'}`}>
+                      <div className="notification-icon">
+                        {notification.type === 'assignment' ? (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                          </svg>
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
+                          </svg>
+                        )}
+                      </div>
+                      <div className="notification-content">
+                        <h4>{notification.title}</h4>
+                        <p>{notification.message}</p>
+                        <span className="notification-time">{notification.time}</span>
+                      </div>
+                      <button 
+                        className="remove-notification-btn"
+                        onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
+                        title="Remover esta notificação"
+                      >
+                        ×
+                      </button>
+                      {!notification.read && <div className="unread-dot"></div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="version-info">
             <span className="version-label">v{packageJson.version}</span>
           </div>

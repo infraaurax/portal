@@ -250,11 +250,11 @@ const observacoesService = {
   // Obter tipos de observação disponíveis
   getTiposObservacao() {
     return [
-      { value: 'info', label: 'Informação', color: '#2196F3' },
-      { value: 'importante', label: 'Importante', color: '#FF9800' },
-      { value: 'resolucao', label: 'Resolução', color: '#4CAF50' },
-      { value: 'problema', label: 'Problema', color: '#F44336' },
-      { value: 'followup', label: 'Follow-up', color: '#9C27B0' }
+      { value: 'info', label: 'Informação', color: '#3b82f6' },
+      { value: 'importante', label: 'Importante', color: '#f97316' },
+      { value: 'resolucao', label: 'Resolução', color: '#10b981' },
+      { value: 'problema', label: 'Problema', color: '#dc2626' },
+      { value: 'followup', label: 'Follow-up', color: '#221C62' }
     ];
   }
 };

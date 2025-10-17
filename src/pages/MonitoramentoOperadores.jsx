@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import FilaInteligente from '../components/FilaInteligente';
 import './PageStyles.css';
 import './MonitoramentoOperadores.css';
 
@@ -177,15 +178,7 @@ const MonitoramentoOperadores = () => {
         <h1>Gerenciamento de Operadores</h1>
         <p>Monitore e gerencie operadores online e offline em tempo real</p>
         
-        <div className="header-actions">
-          <button 
-            className="btn-refresh"
-            onClick={carregarOperadores}
-            title="Atualizar dados manualmente"
-          >
-            🔄 Atualizar
-          </button>
-        </div>
+        
       </div>
 
       {error && (
@@ -196,7 +189,16 @@ const MonitoramentoOperadores = () => {
       )}
 
       <div className="page-content">
-        {/* Estatísticas */}
+       
+
+        {/* Componente Fila Inteligente */}
+        <div className="fila-inteligente-section">
+          <FilaInteligente />
+        </div>
+
+        {/* Lista de Operadores - Layout de Duas Colunas */}
+        <div className="operadores-section">
+           {/* Estatísticas */}
         <div className="stats-section">
           <div className="stat-card online">
             <h3>🟢 Operadores Online</h3>
@@ -216,9 +218,6 @@ const MonitoramentoOperadores = () => {
             <p>Total cadastrados</p>
           </div>
         </div>
-
-        {/* Lista de Operadores - Layout de Duas Colunas */}
-        <div className="operadores-section">
           <div className="operadores-colunas">
             {/* Coluna Online */}
             <div className="coluna-operadores online">

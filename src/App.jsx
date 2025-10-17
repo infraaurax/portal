@@ -12,6 +12,7 @@ import PerguntasNaoRespondidas from './pages/PerguntasNaoRespondidas';
 import Usuarios from './pages/Usuarios';
 import Categorias from './pages/Categorias';
 import MonitoramentoOperadores from './pages/MonitoramentoOperadores';
+import TestePage from './pages/TestePage';
 import './App.css';
 
 function App() {
@@ -54,6 +55,11 @@ function App() {
             <Route path="monitoramento-operadores" element={
               <RoleProtectedRoute allowedProfiles={['Admin']}>
                 <MonitoramentoOperadores />
+              </RoleProtectedRoute>
+            } />
+            <Route path="teste" element={
+              <RoleProtectedRoute allowedProfiles={['Admin', 'Operador']}>
+                <TestePage />
               </RoleProtectedRoute>
             } />
           </Route>

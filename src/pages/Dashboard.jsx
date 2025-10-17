@@ -1202,6 +1202,27 @@ const Dashboard = () => {
     }
   }, [atendimentoPausado]);
 
+  // useEffect para distribuição automática periódica (apenas para admins)
+  useEffect(() => {
+    if (!user?.is_admin) return;
+
+    const executarDistribuicaoAutomatica = async () => {
+      try {
+        await atendimentosService.executarDistribuicaoAutomatica();
+      } catch (error) {
+        console.error('Erro na distribuição automática:', error);
+      }
+    };
+
+    // Executa a distribuição a cada 30 segundos
+    const intervalo = setInterval(executarDistribuicaoAutomatica, 30000);
+
+    // Executa uma vez imediatamente
+    executarDistribuicaoAutomatica();
+
+    return () => clearInterval(intervalo);
+  }, [user?.is_admin]);
+
   // Função para gerar senha aleatória
   const gerarSenhaAleatoria = () => {
     const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -1368,7 +1389,7 @@ const Dashboard = () => {
                       className="btn-warning" 
                       onClick={pausarAtendimentos}
                     >
-                      ⏸️ Pausar Atendimentos
+                      Pausar Atendimentos
                     </button>
                   ) : (
                     <button 
@@ -1384,6 +1405,8 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+
 
       <div className="page-content-dashboard">
         <div className="whatsapp-layout">
@@ -1453,6 +1476,14 @@ const Dashboard = () => {
                         </div>
                         <div className="filter-option">
                           <button 
+                            className={`filter-btn ${filtroStatus === 'transferindo' ? 'active' : ''}`}
+                            onClick={() => aplicarFiltroStatus('transferindo')}
+                          >
+                            Transferindo
+                          </button>
+                        </div>
+                        <div className="filter-option">
+                          <button 
                             className={`filter-btn ${filtroStatus === 'pausado' ? 'active' : ''}`}
                             onClick={() => aplicarFiltroStatus('pausado')}
                           >
@@ -1489,6 +1520,8 @@ const Dashboard = () => {
                 )}
               </div>
               </div>
+              
+
             </div>
             
             <div className="atendimentos-list">
@@ -1539,9 +1572,7 @@ const Dashboard = () => {
                           <span className="atendimento-nome">{atendimento.nome}</span>
                           <span className="atendimento-time">{atendimento.horario}</span>
                         </div>
-                        <div className="atendimento-codigo">
-                          <span className="codigo-valor">#{atendimento.codigo}</span>
-                        </div>
+                          <div className="atendimento-codigo">#{atendimento.codigo}</div>
                       </div>
                       <div className="atendimento-preview">
                         <div className="status-message-column">
@@ -2005,7 +2036,7 @@ const Dashboard = () => {
                     <div className="info-item">
                       <label>E-MAIL:</label>
                       <div className="info-item-with-edit">
-                        <span>{atendimentoSelecionado.email || 'joao.silva@email.com'}</span>
+                        <span>{atendimentoSelecionado.email || 'Nenhum e-mail cadastrado'}</span>
                         <button 
                           className="btn-edit-field"
                           onClick={() => {

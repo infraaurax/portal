@@ -32,7 +32,7 @@ const Usuarios = () => {
           email: operador.email,
           cpf: operador.cpf || '-',
           perfil: operador.perfil || operador.tipo || 'Operador',
-          status: operador.status === 'ativo' ? 'Ativo' : 'Bloqueado',
+          status: operador.status === 'disponivel' ? 'Ativo' : 'Bloqueado',
           dataCriacao: operador.data_criacao || operador.created_at,
           ultimoAcesso: operador.ultimo_acesso || '-'
         }));
@@ -115,7 +115,7 @@ const Usuarios = () => {
           email: novoOperador.email,
           cpf: novoOperador.cpf || '-',
           perfil: novoOperador.perfil || 'Operador',
-          status: novoOperador.status === 'ativo' ? 'Ativo' : 'Bloqueado',
+          status: novoOperador.status === 'disponivel' ? 'Ativo' : 'Bloqueado',
           dataCriacao: novoOperador.created_at,
           ultimoAcesso: '-'
         };
@@ -170,7 +170,7 @@ const Usuarios = () => {
       setStatusMessage('Atualizando status do usuário...');
       
       // Determinar novo status
-      const novoStatus = selectedUser.status === 'Ativo' ? 'inativo' : 'ativo';
+      const novoStatus = selectedUser.status === 'Ativo' ? 'inativo' : 'disponivel';
       const novoStatusInterface = selectedUser.status === 'Ativo' ? 'Bloqueado' : 'Ativo';
       
       console.log('🔄 [Usuarios] Alterando status:', {

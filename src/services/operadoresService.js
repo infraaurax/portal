@@ -320,8 +320,8 @@ export const alterarStatus = async (id, status) => {
     }
     
     // Verificar se o status é válido
-    if (!status || (status !== 'ativo' && status !== 'inativo')) {
-      throw new Error('Status deve ser "ativo" ou "inativo"');
+    if (!status || (status !== 'disponivel' && status !== 'inativo')) {
+      throw new Error('Status deve ser "disponivel" ou "inativo"');
     }
     
     const { data, error } = await supabase

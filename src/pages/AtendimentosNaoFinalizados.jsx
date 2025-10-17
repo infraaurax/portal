@@ -289,6 +289,7 @@ const AtendimentosNaoFinalizados = () => {
                                     ✏️
                                   </button>
                                 </div>
+                                <div className="atendimento-codigo">#{atendimento.codigo}</div>
                                 <p>{atendimento.telefone}</p>
                               </div>
                             </div>

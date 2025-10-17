@@ -98,6 +98,7 @@ export const atendimentosService = {
       'em-andamento': 'Em andamento',
       'atendimento_ia': 'Atendimento IA',
       'aguardando': 'Aguardando',
+      'transferindo': 'Transferindo',
       'pausado': 'Pausado',
       'finalizado': 'Finalizado',
       'abandonado': 'Abandonado',
@@ -1003,51 +1004,564 @@ export const atendimentosService = {
     }
   },
 
-  // Aceitar atendimento aguardando (da fila)
+  // Aceitar atendimento aguardando (da fila inteligente)
   async aceitarAtendimentoAguardando(atendimentoId, operadorId) {
     try {
-      console.log('🔄 Aceitando atendimento aguardando:', { atendimentoId, operadorId });
+      console.log('🔄 [FILA INTELIGENTE] Aceitando atendimento aguardando:', { atendimentoId, operadorId });
 
-      const { data, error } = await supabase
-        .rpc('aceitar_atendimento_aguardando', {
-          p_atendimento_id: atendimentoId,
-          p_operador_id: operadorId
-        });
+      // Verificar se o atendimento existe e está aguardando
+      const { data: atendimento, error: errorAtendimento } = await supabase
+        .from('atendimentos')
+        .select('id, cliente_nome, status, operador_id')
+        .eq('id', atendimentoId)
+        .single();
 
-      if (error) {
-        console.error('❌ Erro ao aceitar atendimento aguardando:', error);
-        throw error;
+      if (errorAtendimento || !atendimento) {
+        throw new Error('Atendimento não encontrado');
       }
 
-      console.log('✅ Atendimento aceito:', data);
-      return data;
+      if (!['aguardando', 'novo'].includes(atendimento.status)) {
+        throw new Error(`Atendimento não está disponível para aceitar. Status atual: ${atendimento.status}`);
+      }
+
+      // Verificar se o operador existe e está disponível
+      const { data: operador, error: errorOperador } = await supabase
+        .from('operadores')
+        .select('id, nome, email, status')
+        .eq('id', operadorId)
+        .single();
+
+      if (errorOperador || !operador) {
+        throw new Error('Operador não encontrado');
+      }
+
+      if (operador.status !== 'disponivel') {
+        throw new Error(`Operador não está disponível. Status atual: ${operador.status}`);
+      }
+
+      // Aceitar o atendimento
+      const { error: errorUpdate } = await supabase
+        .from('atendimentos')
+        .update({
+          status: 'em-andamento',
+          operador_id: operadorId,
+          data_inicio: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', atendimentoId);
+
+      if (errorUpdate) {
+        throw errorUpdate;
+      }
+
+      // Nota: Status do operador não é alterado para 'ocupado' automaticamente
+      // O operador permanece 'disponivel' para aceitar outros atendimentos
+
+      const result = {
+        sucesso: true,
+        mensagem: 'Atendimento aceito com sucesso',
+        atendimento_id: atendimentoId,
+        operador_id: operadorId,
+        operador_nome: operador.nome,
+        cliente_nome: atendimento.cliente_nome,
+        status_anterior: atendimento.status,
+        status_novo: 'em-andamento',
+        data_aceitacao: new Date().toISOString()
+      };
+
+      console.log('✅ [FILA INTELIGENTE] Atendimento aceito:', result);
+      
+      // Executar distribuição automática após aceitação
+      await this.executarDistribuicaoAutomatica();
+      
+      return result;
     } catch (error) {
       console.error('❌ Erro no serviço aceitarAtendimentoAguardando:', error);
       throw error;
     }
   },
 
-  // Rejeitar atendimento aguardando (passa para o próximo da fila)
+  // Rejeitar atendimento aguardando (sistema de fila inteligente)
   async rejeitarAtendimentoAguardando(atendimentoId, operadorId) {
     try {
-      console.log('🔄 Rejeitando atendimento aguardando:', { atendimentoId, operadorId });
+      console.log('🔄 [MODAL] Rejeitando atendimento aguardando:', { atendimentoId, operadorId });
 
       const { data, error } = await supabase
-        .rpc('rejeitar_atendimento_aguardando', {
+        .rpc('rejeitar_atendimento_simples', {
           p_atendimento_id: atendimentoId,
           p_operador_id: operadorId
         });
 
       if (error) {
-        console.error('❌ Erro ao rejeitar atendimento aguardando:', error);
+        console.error('❌ Erro ao rejeitar atendimento:', error);
         throw error;
       }
 
-      console.log('✅ Atendimento rejeitado e passado para próximo da fila:', data);
+      console.log('✅ [MODAL] Atendimento rejeitado com sucesso:', data);
+      
+      // Executar distribuição automática após rejeição para redistribuir
+      try {
+        await this.executarDistribuicaoAutomatica();
+        console.log('✅ [MODAL] Distribuição automática executada após rejeição');
+      } catch (distribError) {
+        console.warn('⚠️ [MODAL] Erro na distribuição automática após rejeição:', distribError);
+        // Não falhar a rejeição por causa da distribuição
+      }
+      
       return data;
     } catch (error) {
       console.error('❌ Erro no serviço rejeitarAtendimentoAguardando:', error);
       throw error;
+    }
+  },
+
+  // Executar distribuição automática da fila inteligente
+  async executarDistribuicaoAutomatica() {
+    try {
+      console.log('🤖 [FILA INTELIGENTE] Iniciando distribuição automática...');
+
+      // Usar a função SQL distribuir_atendimentos_inteligente que muda status para 'aguardando'
+      const { data: distribuicaoData, error: distribuicaoError } = await supabase
+        .rpc('distribuir_atendimentos_inteligente');
+
+      if (distribuicaoError) {
+        console.error('Erro na distribuição inteligente:', distribuicaoError);
+        throw distribuicaoError;
+      }
+
+      if (!distribuicaoData || distribuicaoData.length === 0) {
+        console.log('ℹ️ Nenhum atendimento foi distribuído');
+        return { success: false, message: 'Nenhum atendimento foi distribuído' };
+      }
+
+      console.log('✅ [FILA INTELIGENTE] Distribuição realizada com sucesso:', distribuicaoData);
+      return {
+        success: true,
+        message: `${distribuicaoData.length} atendimento(s) distribuído(s) com sucesso`,
+        distribuicoes: distribuicaoData
+      };
+
+    } catch (error) {
+      console.error('❌ Erro no serviço executarDistribuicaoAutomatica:', error);
+      throw error;
+    }
+  },
+
+  // Adicionar atendimento à fila inteligente
+  async adicionarAtendimentoFila(atendimentoId, prioridade = 1) {
+    try {
+      console.log('➕ [FILA INTELIGENTE] Adicionando atendimento à fila:', { atendimentoId, prioridade });
+
+      const { data, error } = await supabase
+        .rpc('adicionar_atendimento_fila', {
+          p_atendimento_id: atendimentoId,
+          p_prioridade: prioridade
+        });
+
+      if (error) {
+        console.error('❌ Erro ao adicionar atendimento à fila:', error);
+        throw error;
+      }
+
+      console.log('✅ [FILA INTELIGENTE] Atendimento adicionado à fila:', data);
+      
+      // Executar distribuição automática após adicionar
+      await this.executarDistribuicaoAutomatica();
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Erro no serviço adicionarAtendimentoFila:', error);
+      throw error;
+    }
+  },
+
+  // Buscar status da fila inteligente
+  async buscarStatusFila() {
+    try {
+      console.log('📊 [FILA INTELIGENTE] Buscando status da fila...');
+
+      const { data, error } = await supabase
+        .from('atendimentos')
+        .select(`
+          id,
+          codigo,
+          cliente_nome,
+          cliente_telefone,
+          descricao_atendimento,
+          status,
+          prioridade,
+          fila_prioridade,
+          fila_data_entrada,
+          fila_status,
+          created_at,
+          updated_at
+        `)
+        .eq('fila_status', 'na_fila')
+        .order('fila_prioridade', { ascending: false })
+        .order('fila_data_entrada', { ascending: true });
+
+      if (error) {
+        console.error('❌ Erro ao buscar status da fila:', error);
+        throw error;
+      }
+
+      console.log('✅ [FILA INTELIGENTE] Status da fila:', data);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Erro no serviço buscarStatusFila:', error);
+      throw error;
+    }
+  },
+
+  // Monitorar atendimentos com muitas rejeições
+  async monitorarAtendimentosRisco() {
+    try {
+      const { data, error } = await supabase
+        .from('atendimentos')
+        .select(`
+          id,
+          codigo,
+          cliente_nome,
+          cliente_telefone,
+          descricao_atendimento,
+          status,
+          prioridade,
+          fila_prioridade,
+          fila_data_entrada,
+          fila_status,
+          created_at,
+          updated_at
+        `)
+        .in('fila_status', ['na_fila', 'oferecido'])
+        .order('fila_data_entrada', { ascending: true });
+
+      if (error) throw error;
+      
+      // Filtrar atendimentos que estão há muito tempo na fila (mais de 30 minutos)
+      const agora = new Date();
+      const atendimentosRisco = (data || []).filter(item => {
+        const tempoNaFila = agora - new Date(item.fila_data_entrada);
+        return tempoNaFila > 30 * 60 * 1000; // 30 minutos em millisegundos
+      });
+      
+      return atendimentosRisco;
+    } catch (error) {
+      console.error('Erro ao monitorar atendimentos de risco:', error);
+      throw error;
+    }
+  },
+
+  // Obter estatísticas da fila
+  async obterEstatisticasFila() {
+    try {
+      // Usar a função SQL para obter estatísticas
+      const { data: estatisticasData, error: estatisticasError } = await supabase
+        .rpc('estatisticas_fila');
+
+      if (estatisticasError) {
+        console.error('Erro ao obter estatísticas via função:', estatisticasError);
+        // Fallback para consulta manual
+        const { data, error } = await supabase
+          .from('atendimentos')
+          .select('fila_status')
+          .not('fila_status', 'is', null);
+
+        if (error) throw error;
+
+        const estatisticas = {
+          total: data.length,
+          na_fila: data.filter(item => item.fila_status === 'na_fila').length,
+          oferecido: data.filter(item => item.fila_status === 'oferecido').length,
+          aceito: data.filter(item => item.fila_status === 'aceito').length,
+          rejeitado: data.filter(item => item.fila_status === 'rejeitado').length,
+          expirado: data.filter(item => item.fila_status === 'expirado').length,
+          media_rejeicoes: 0
+        };
+
+        return estatisticas;
+      }
+
+      return estatisticasData[0] || {
+        total: 0,
+        na_fila: 0,
+        oferecido: 0,
+        aceito: 0,
+        rejeitado: 0,
+        expirado: 0,
+        media_rejeicoes: 0
+      };
+    } catch (error) {
+      console.error('Erro ao obter estatísticas da fila:', error);
+      throw error;
+    }
+  },
+
+  // Buscar operadores disponíveis (online e habilitados)
+  async buscarOperadoresDisponiveis() {
+    try {
+      console.log('🔍 [FILA INTELIGENTE] Buscando operadores disponíveis...');
+      
+      const { data, error } = await supabase
+        .from('operadores')
+        .select('id, nome, email, status, online, habilitado')
+        .eq('online', true)
+        .eq('habilitado', true)
+        .order('updated_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ Erro ao buscar operadores disponíveis:', error);
+        throw error;
+      }
+
+      console.log('✅ [FILA INTELIGENTE] Operadores disponíveis encontrados:', data?.length || 0);
+      return data || [];
+    } catch (error) {
+      console.error('❌ Erro no serviço buscarOperadoresDisponiveis:', error);
+      throw error;
+    }
+  },
+
+  // Buscar atendimentos por status específico
+  async buscarAtendimentosPorStatus(status) {
+    try {
+      console.log(`🔍 [FILA INTELIGENTE] Buscando atendimentos com status: ${status}`);
+      
+      const { data, error } = await supabase
+        .from('atendimentos')
+        .select('*')
+        .eq('status', status)
+        .is('operador_id', null) // Apenas atendimentos sem operador
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error(`❌ Erro ao buscar atendimentos com status ${status}:`, error);
+        throw error;
+      }
+
+      // Processar atendimentos para o formato esperado
+      const atendimentosProcessados = await Promise.all(
+        (data || []).map(async (atendimento) => {
+          // Buscar última mensagem (com tratamento de erro)
+          let ultimaMensagem = null;
+          try {
+            const { data: mensagemData, error: mensagemError } = await supabase
+              .from('mensagens')
+              .select('conteudo, created_at')
+              .eq('atendimento_id', atendimento.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            
+            if (mensagemError) {
+              console.log(`⚠️ Mensagem não encontrada para atendimento ${atendimento.id}, usando descrição`);
+              ultimaMensagem = null;
+            } else {
+              ultimaMensagem = mensagemData;
+            }
+          } catch (mensagemError) {
+            console.log(`⚠️ Erro ao buscar mensagem para atendimento ${atendimento.id}:`, mensagemError.message);
+            ultimaMensagem = null;
+          }
+
+          return {
+            id: atendimento.id,
+            codigo: atendimento.codigo,
+            nome: atendimento.cliente_nome || `Cliente ${atendimento.codigo}`,
+            telefone: atendimento.cliente_telefone || '',
+            email: atendimento.cliente_email || '',
+            avatar: this.gerarAvatar(atendimento.cliente_nome || `Cliente ${atendimento.codigo}`),
+            ultima_mensagem: ultimaMensagem?.conteudo || atendimento.descricao_atendimento || 'Sem mensagens',
+            horario: ultimaMensagem?.created_at 
+              ? new Date(ultimaMensagem.created_at).toLocaleTimeString('pt-BR', { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })
+              : new Date(atendimento.created_at).toLocaleTimeString('pt-BR', { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                }),
+            status: atendimento.status,
+            status_texto: this.formatarStatusTexto(atendimento.status),
+            prioridade: atendimento.prioridade,
+            created_at: atendimento.created_at,
+            updated_at: atendimento.updated_at
+          };
+        })
+      );
+
+      console.log(`✅ [FILA INTELIGENTE] Atendimentos com status ${status} encontrados:`, atendimentosProcessados.length);
+      return atendimentosProcessados;
+    } catch (error) {
+      console.error('❌ Erro no serviço buscarAtendimentosPorStatus:', error);
+      throw error;
+    }
+  },
+
+
+
+  // Recusar atendimento (quando operador recusa)
+  async recusarAtendimento(atendimentoId, operadorId) {
+    try {
+      console.log(`🚫 [OPERADOR] Recusando atendimento ${atendimentoId} pelo operador ${operadorId}`);
+      
+      // Remover o operador do atendimento e voltar para fila
+      const { error } = await supabase
+        .from('atendimentos')
+        .update({
+          operador_id: null,
+          status: 'aguardando',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', atendimentoId)
+        .eq('operador_id', operadorId);
+
+      if (error) {
+        console.error(`❌ Erro ao recusar atendimento ${atendimentoId}:`, error);
+        throw error;
+      }
+
+      console.log(`✅ [OPERADOR] Atendimento ${atendimentoId} recusado com sucesso`);
+      
+      // Incrementar contador de rejeições (se houver campo)
+      try {
+        await supabase.rpc('incrementar_rejeicao', { p_atendimento_id: atendimentoId });
+      } catch (e) {
+        // Se não existir a função, ignora
+        console.log('ℹ️ Função incrementar_rejeicao não encontrada, ignorando');
+      }
+
+    } catch (error) {
+      console.error('❌ Erro no serviço recusarAtendimento:', error);
+      throw error;
+    }
+  },
+
+  // ============================================
+  // DISTRIBUIÇÃO AUTOMÁTICA CONTÍNUA
+  // ============================================
+  
+  // Variáveis para controlar o intervalo de distribuição automática
+  _intervalDistribuicaoAutomatica: null,
+  _distribuicaoAutomaticaAtiva: false,
+
+  // Iniciar distribuição automática contínua
+  async iniciarDistribuicaoAutomatica(intervaloSegundos = 30) {
+    try {
+      console.log('🚀 Iniciando distribuição automática contínua...', { intervaloSegundos });
+      
+      // Se já está ativa, parar primeiro
+      if (this._distribuicaoAutomaticaAtiva) {
+        this.pararDistribuicaoAutomatica();
+      }
+
+      this._distribuicaoAutomaticaAtiva = true;
+
+      // Executar distribuição imediatamente
+      await this.executarDistribuicaoAutomatica();
+
+      // Configurar intervalo para execução contínua
+      this._intervalDistribuicaoAutomatica = setInterval(async () => {
+        if (this._distribuicaoAutomaticaAtiva) {
+          try {
+            console.log('⏰ Executando distribuição automática programada...');
+            await this.executarDistribuicaoAutomatica();
+          } catch (error) {
+            console.error('❌ Erro na distribuição automática programada:', error);
+          }
+        }
+      }, intervaloSegundos * 1000);
+
+      console.log('✅ Distribuição automática contínua iniciada com sucesso!');
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao iniciar distribuição automática contínua:', error);
+      throw error;
+    }
+  },
+
+  // Parar distribuição automática contínua
+  pararDistribuicaoAutomatica() {
+    try {
+      console.log('⏹️ Parando distribuição automática contínua...');
+      
+      this._distribuicaoAutomaticaAtiva = false;
+      
+      if (this._intervalDistribuicaoAutomatica) {
+        clearInterval(this._intervalDistribuicaoAutomatica);
+        this._intervalDistribuicaoAutomatica = null;
+      }
+
+      console.log('✅ Distribuição automática contínua parada com sucesso!');
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao parar distribuição automática contínua:', error);
+      throw error;
+    }
+  },
+
+  // Verificar se distribuição automática está ativa
+  isDistribuicaoAutomaticaAtiva() {
+    return this._distribuicaoAutomaticaAtiva;
+  },
+
+  // Distribuição automática inteligente com verificações
+  async executarDistribuicaoAutomaticaInteligente() {
+    try {
+      console.log('🧠 Executando distribuição automática inteligente...');
+
+      // Verificar se há atendimentos aguardando
+      const { data: atendimentosAguardando, error: errorAguardando } = await supabase
+        .from('fila_atendimentos')
+        .select(`
+          id,
+          atendimento_id,
+          status,
+          prioridade,
+          data_entrada,
+          atendimentos (
+            id,
+            codigo,
+            cliente_nome,
+            status,
+            prioridade,
+            created_at
+          )
+        `)
+        .eq('status', 'aguardando')
+        .order('prioridade', { ascending: false })
+        .order('data_entrada', { ascending: true });
+
+      if (errorAguardando) {
+        console.error('❌ Erro ao buscar atendimentos aguardando:', errorAguardando);
+        return false;
+      }
+
+      if (!atendimentosAguardando || atendimentosAguardando.length === 0) {
+        console.log('ℹ️ Nenhum atendimento aguardando distribuição');
+        return false;
+      }
+
+      console.log(`📋 ${atendimentosAguardando.length} atendimento(s) aguardando distribuição`);
+
+      // Verificar operadores disponíveis
+      const operadoresDisponiveis = await this.buscarOperadoresDisponiveis();
+      
+      if (!operadoresDisponiveis || operadoresDisponiveis.length === 0) {
+        console.log('⚠️ Nenhum operador disponível para distribuição');
+        return false;
+      }
+
+      console.log(`👥 ${operadoresDisponiveis.length} operador(es) disponível(is)`);
+
+      // Executar distribuição usando a função do banco
+      const resultado = await this.executarDistribuicaoAutomatica();
+      
+      console.log('✅ Distribuição automática inteligente executada:', resultado);
+      return true;
+
+    } catch (error) {
+      console.error('❌ Erro na distribuição automática inteligente:', error);
+      return false;
     }
   }
 };
