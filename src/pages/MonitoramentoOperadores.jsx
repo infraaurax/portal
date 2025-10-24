@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import FilaInteligente from '../components/FilaInteligente';
+import AtendimentosAguardando from '../components/AtendimentosAguardando';
 import './PageStyles.css';
 import './MonitoramentoOperadores.css';
 

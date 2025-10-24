@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import atendimentosService from '../services/atendimentosService';
+import filaSimplificadaService from '../services/filaSimplificadaService';
 import './FilaInteligente.css';
 
 const FilaInteligente = () => {
@@ -8,7 +9,7 @@ const FilaInteligente = () => {
   const [estatisticas, setEstatisticas] = useState({});
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+
   const [modalAtribuir, setModalAtribuir] = useState(false);
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
   const [operadoresDisponiveis, setOperadoresDisponiveis] = useState([]);
@@ -22,18 +23,23 @@ const FilaInteligente = () => {
   const carregarAtendimentosAguardando = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Carregando atendimentos aguardando...');
       
-      // Buscar apenas atendimentos com status 'aguardando'
+      // Buscar atendimentos com status "aguardando" (não por fila_status)
       const atendimentos = await atendimentosService.buscarAtendimentosPorStatus('aguardando');
+      console.log('📋 Atendimentos encontrados:', atendimentos);
+      console.log('📊 Quantidade de atendimentos:', atendimentos?.length || 0);
+      
+      // Buscar estatísticas e atendimentos de risco
       const risco = await atendimentosService.monitorarAtendimentosRisco();
-      const stats = await atendimentosService.obterEstatisticasFila();
+      const stats = await atendimentosService.obterEstatisticasAtendimentos();
       
       setAtendimentosAguardando(atendimentos);
       setAtendimentosRisco(risco);
       setEstatisticas(stats);
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('Erro ao carregar atendimentos aguardando:', error);
+      console.error('❌ Erro ao carregar atendimentos aguardando:', error);
     } finally {
       setLoading(false);
     }
@@ -83,9 +89,13 @@ const FilaInteligente = () => {
   const executarDistribuicao = async () => {
     try {
       setLoading(true);
-      await atendimentosService.executarDistribuicaoAutomatica();
+      const resultado = await filaSimplificadaService.forcarDistribuicao();
       await carregarAtendimentosAguardando();
-      alert('Distribuição automática executada com sucesso!');
+      if (resultado.success) {
+        alert('Distribuição automática executada com sucesso!');
+      } else {
+        alert('Nenhuma distribuição necessária no momento.');
+      }
     } catch (error) {
       console.error('Erro ao executar distribuição:', error);
       alert(`Erro na distribuição: ${error.message}`);
@@ -134,13 +144,7 @@ const FilaInteligente = () => {
     localStorage.setItem('distribuicaoAutomaticaAtiva', JSON.stringify(distribuicaoAutomaticaAtiva));
   }, [distribuicaoAutomaticaAtiva]);
 
-  // Auto-refresh a cada 10 segundos
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(carregarAtendimentosAguardando, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh]);
+
 
   // Buscar dados iniciais e iniciar distribuição automática se estava ativa
   useEffect(() => {
@@ -203,6 +207,33 @@ const FilaInteligente = () => {
     return 'text-red-500';
   };
 
+  // Função de teste para verificar dados na fila
+  const testarDadosFila = async () => {
+    try {
+      console.log('🧪 INICIANDO TESTE DE DADOS NA FILA...');
+      
+      // Teste 1: Verificar função buscarAtendimentosPorStatus
+      console.log('🔍 Teste 1: Chamando buscarAtendimentosPorStatus...');
+      const resultado = await atendimentosService.buscarAtendimentosPorStatus('aguardando');
+      console.log('📊 Resultado da busca:', resultado);
+      
+      // Teste 2: Verificar se há dados na tabela atendimentos
+      console.log('🔍 Teste 2: Verificando tabela atendimentos...');
+      const todosAtendimentos = await atendimentosService.buscarTodos();
+      console.log('📋 Total de atendimentos:', todosAtendimentos?.length || 0);
+      
+      // Teste 3: Verificar estatísticas
+      console.log('🔍 Teste 3: Verificando estatísticas...');
+      const stats = await atendimentosService.obterEstatisticasFila();
+      console.log('📊 Estatísticas:', stats);
+      
+      alert(`Teste concluído! Verifique o console para detalhes.\nAtendimentos aguardando: ${resultado?.length || 0}\nTotal de atendimentos: ${todosAtendimentos?.length || 0}`);
+    } catch (error) {
+      console.error('❌ Erro no teste:', error);
+      alert('Erro no teste: ' + error.message);
+    }
+  };
+
   return (
     <div className="fila-inteligente-container">
       {/* Header */}
@@ -213,17 +244,7 @@ const FilaInteligente = () => {
         </div>
         
         <div className="fila-actions">
-          <div className="auto-refresh-toggle">
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-              />
-              <span className="slider"></span>
-            </label>
-            <span>Auto-refresh</span>
-          </div>
+
 
           <div className="distribuicao-automatica-toggle">
             <label className="switch">
@@ -243,6 +264,23 @@ const FilaInteligente = () => {
             disabled={loading}
           >
             {loading ? '🔄' : '⚡'} Distribuir Agora
+          </button>
+          
+          <button 
+            className="btn-teste"
+            onClick={testarDadosFila}
+            style={{
+              backgroundColor: '#6366f1',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              marginLeft: '8px'
+            }}
+          >
+            🧪 Testar Fila
           </button>
           
         
@@ -273,7 +311,7 @@ const FilaInteligente = () => {
 
       {/* Lista de Atendimentos */}
       <div className="fila-atendimentos">
-        <h3 className="fila-section-title">🎯 Atendimentos Aguardando</h3>
+       
         
         {loading && (
           <div className="loading-container">

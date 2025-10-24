@@ -18,7 +18,7 @@ DROP TABLE IF EXISTS fila_atendimentos CASCADE;
 CREATE TABLE fila_atendimentos (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     atendimento_id UUID NOT NULL REFERENCES atendimentos(id) ON DELETE CASCADE,
-    operador_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    operador_id UUID REFERENCES operadores(id) ON DELETE SET NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'na_fila', -- na_fila, oferecido, aceito, rejeitado, expirado
     tentativas_rejeicao INTEGER DEFAULT 0,
     data_entrada TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -88,10 +88,11 @@ DECLARE
 BEGIN
     -- Contar operadores online e habilitados
     SELECT COUNT(*) INTO v_operadores_online
-    FROM auth.users u
-    WHERE u.raw_user_meta_data->>'habilitado' = 'true'
-    AND u.raw_user_meta_data->>'status_geral' = 'ativo'
-    AND u.last_sign_in_at > NOW() - INTERVAL '5 minutes'; -- Considerado online se logou nos últimos 5 minutos
+    FROM operadores
+    WHERE habilitado = true
+    AND online = true
+    AND pos_token IS NOT NULL
+    AND pos_token > 0;
 
     -- Se não há operadores online, não distribuir nada
     IF v_operadores_online = 0 THEN
@@ -123,21 +124,29 @@ BEGIN
         SELECT 
             fa.id as fila_id,
             fa.atendimento_id,
-            u.id as operador_id,
-            u.email as operador_email,
-            COALESCE((u.raw_user_meta_data->>'pos_token')::INTEGER, 999) as pos_token
+            o.id as operador_id,
+            o.email as operador_email,
+            COALESCE(o.pos_token, 999) as pos_token
         FROM fila_atendimentos fa
-        CROSS JOIN auth.users u
+        CROSS JOIN operadores o
         WHERE fa.status = 'na_fila'
-        AND u.raw_user_meta_data->>'habilitado' = 'true'
-        AND u.raw_user_meta_data->>'status_geral' = 'ativo'
-        AND u.last_sign_in_at > NOW() - INTERVAL '5 minutes'
+        AND o.habilitado = true
+        AND o.online = true
+        AND o.pos_token IS NOT NULL
+        AND o.pos_token > 0
         AND NOT EXISTS (
             -- Operador não pode ter atendimento já oferecido
             SELECT 1 FROM fila_atendimentos fa2
-            WHERE fa2.operador_id = u.id
+            WHERE fa2.operador_id = o.id
             AND fa2.status = 'oferecido'
             AND (fa2.data_expiracao IS NULL OR fa2.data_expiracao > NOW())
+        )
+        AND NOT EXISTS (
+            -- NUNCA oferecer para operadores que já rejeitaram este atendimento
+            SELECT 1 FROM ofertas_operador oo
+            WHERE oo.atendimento_id = fa.atendimento_id
+            AND oo.operador_id = o.id
+            AND oo.status = 'rejeitado'
         )
         ORDER BY fa.prioridade DESC, fa.data_entrada ASC, pos_token ASC
         LIMIT (v_max_oferecimentos - v_atendimentos_oferecidos)
@@ -159,6 +168,15 @@ BEGIN
             status = 'aguardando',
             updated_at = NOW()
         WHERE id = rec.atendimento_id;
+
+        -- Registrar a oferta na tabela de controle
+        INSERT INTO ofertas_operador (atendimento_id, operador_id, status, oferecido_em)
+        VALUES (rec.atendimento_id, rec.operador_id, 'oferecido', NOW())
+        ON CONFLICT (atendimento_id, operador_id) 
+        DO UPDATE SET 
+            status = 'oferecido',
+            oferecido_em = NOW(),
+            updated_at = NOW();
 
         -- Retornar dados para notificação
         atendimento_id := rec.atendimento_id;

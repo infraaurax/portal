@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import atendimentosService from '../services/atendimentosService';
+import filaSimplificadaService from '../services/filaSimplificadaService';
 import './PageStyles.css';
 import './TestePage.css';
 
@@ -66,27 +68,18 @@ const TestePage = () => {
     }
   };
 
-  // Função para verificar se a função existe
+  // Função para verificar se a distribuição automática funciona
   const verificarFuncaoExiste = async () => {
     try {
-      addLog('🔍 Verificando se a função existe...', 'info');
+      addLog('🔍 Testando distribuição automática (sistema simplificado)...', 'info');
       
-      const { data, error } = await supabase
-        .rpc('distribuir_atendimentos_inteligente');
+      const resultado = await filaSimplificadaService.forcarDistribuicao();
       
-      if (error) {
-        if (error.message.includes('Could not find the function')) {
-          addLog('❌ Função NÃO existe no banco de dados', 'error');
-          addLog('📝 Siga as instruções abaixo para criar a função', 'warning');
-        } else {
-          addLog(`❌ Erro ao verificar função: ${error.message}`, 'error');
-        }
-      } else {
-        addLog('✅ Função existe e está funcionando!', 'success');
-        addLog(`📊 Dados retornados: ${JSON.stringify(data, null, 2)}`, 'info');
-      }
-    } catch (err) {
-      addLog(`❌ Erro na verificação: ${err.message}`, 'error');
+      addLog('✅ Distribuição automática funcionando!', 'success');
+      addLog(`📊 Resultado: ${JSON.stringify(resultado, null, 2)}`, 'info');
+      
+    } catch (error) {
+      addLog(`❌ Erro na distribuição automática: ${error.message}`, 'error');
     }
   };
 
@@ -140,24 +133,16 @@ const TestePage = () => {
         return;
       }
       
-      addLog('3️⃣ Testando função de distribuição...', 'info');
+      addLog('3️⃣ Testando distribuição automática (sistema simplificado)...', 'info');
       
-      // Testar a função de distribuição
-      const { data: resultado, error: errorDist } = await supabase
-        .rpc('distribuir_atendimentos_inteligente');
-      
-      if (errorDist) {
+      // Testar a distribuição automática
+      try {
+        const resultado = await filaSimplificadaService.forcarDistribuicao();
+        addLog(`✅ Resultado da distribuição: ${JSON.stringify(resultado)}`, 'success');
+      } catch (errorDist) {
         addLog(`❌ Erro na distribuição: ${errorDist.message}`, 'error');
-        
-        if (errorDist.message.includes('Could not find the function')) {
-          addLog('⚠️ A função distribuir_atendimentos_inteligente não existe!', 'warning');
-          addLog('📝 Veja as instruções abaixo para criar a função.', 'info');
-        }
-        
         return;
       }
-      
-      addLog(`✅ Resultado da distribuição: ${JSON.stringify(resultado)}`, 'success');
       
       addLog('4️⃣ Verificando atendimentos aguardando...', 'info');
       

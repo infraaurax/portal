@@ -374,10 +374,7 @@
   flex: 1;
 }
 
-.btn-finalizar:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
-}
+
 
 /* Modal de Edição de Nome */
 .modal-editar-nome {

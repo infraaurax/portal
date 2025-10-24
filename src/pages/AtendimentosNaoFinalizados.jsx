@@ -5,6 +5,8 @@ import './PageStyles.css';
 import './AtendimentosNaoFinalizados.css';
 
 const AtendimentosNaoFinalizados = () => {
+  console.log('🚀 [Component] AtendimentosNaoFinalizados renderizado');
+  
   const { user } = useAuth();
   const [modalRealocacao, setModalRealocacao] = useState(false);
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
@@ -25,7 +27,12 @@ const AtendimentosNaoFinalizados = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('🔍 Carregando atendimentos não finalizados...');
       const atendimentos = await atendimentosService.buscarNaoFinalizados();
+      console.log('📋 Atendimentos carregados:', atendimentos);
+      console.log('📊 Total de atendimentos:', atendimentos?.length || 0);
+      
       setAtendimentosNaoFinalizados(atendimentos);
       console.log('✅ Atendimentos não finalizados carregados:', atendimentos);
     } catch (err) {
@@ -189,17 +196,25 @@ const AtendimentosNaoFinalizados = () => {
   // Função para agrupar atendimentos por status
   const agruparPorStatus = () => {
     const grupos = {
-      nao_atendido: [],
-      pausado: [],
-      abandonado: []
+      novo: [],
+      'em-andamento': [],
+      aguardando: []
     };
     
+    console.log('🔄 Agrupando atendimentos por status...');
+    console.log('📋 Atendimentos para agrupar:', atendimentosNaoFinalizados);
+    
     atendimentosNaoFinalizados.forEach(atendimento => {
+      console.log(`📌 Processando atendimento ${atendimento.id} com status: ${atendimento.status}`);
       if (grupos[atendimento.status]) {
         grupos[atendimento.status].push(atendimento);
+        console.log(`✅ Atendimento adicionado ao grupo ${atendimento.status}`);
+      } else {
+        console.log(`⚠️ Status ${atendimento.status} não encontrado nos grupos disponíveis:`, Object.keys(grupos));
       }
     });
     
+    console.log('📊 Grupos finais:', grupos);
     return grupos;
   };
 
@@ -207,17 +222,20 @@ const AtendimentosNaoFinalizados = () => {
 
   // Configuração dos status
   const statusConfig = {
-    nao_atendido: {
-      titulo: 'Não Atendidos',
-      cor: '#ef4444'
+    novo: {
+      titulo: 'Novos',
+      cor: '#3b82f6',
+      icon: '🆕'
     },
-    pausado: {
-      titulo: 'Pausados',
-      cor: '#f59e0b'
+    'em-andamento': {
+      titulo: 'Em Andamento',
+      cor: '#f59e0b',
+      icon: '⏳'
     },
-    abandonado: {
-      titulo: 'Abandonados',
-      cor: '#6b7280'
+    aguardando: {
+      titulo: 'Aguardando',
+      cor: '#ef4444',
+      icon: '⏸️'
     }
   };
 
@@ -259,7 +277,9 @@ const AtendimentosNaoFinalizados = () => {
               {Object.entries(statusConfig).map(([status, config]) => {
                 const atendimentosDoStatus = atendimentosAgrupados[status];
                 
-                if (atendimentosDoStatus.length === 0) return null;
+                if (!atendimentosDoStatus || atendimentosDoStatus.length === 0) {
+                  return null;
+                }
                 
                 return (
                   <div key={status} className="grupo-status">

@@ -13,6 +13,7 @@ import Usuarios from './pages/Usuarios';
 import Categorias from './pages/Categorias';
 import MonitoramentoOperadores from './pages/MonitoramentoOperadores';
 import TestePage from './pages/TestePage';
+
 import './App.css';
 
 function App() {
@@ -62,6 +63,7 @@ function App() {
                 <TestePage />
               </RoleProtectedRoute>
             } />
+
           </Route>
         </Routes>
       </Router>

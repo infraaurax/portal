@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { validarSenhaEHabilitar, listarTodosOperadores, buscarPorEmail, buscarPorId } from '../services/operadoresService';
 import atendimentosService from '../services/atendimentosService';
+import filaSimplificadaService from '../services/filaSimplificadaService';
 import mensagensService from '../services/mensagensService';
 import { categoriasService } from '../services/categoriasService';
 import observacoesService from '../services/observacoesService';
@@ -73,6 +74,11 @@ const Dashboard = () => {
   
   // Estado para menu de anexos
   const [menuAnexosAberto, setMenuAnexosAberto] = useState(false);
+  
+  // Estados para modal de finalizar atendimento
+  const [modalFinalizarAtendimento, setModalFinalizarAtendimento] = useState(false);
+  const [atendimentoParaFinalizar, setAtendimentoParaFinalizar] = useState(null);
+  const [finalizandoAtendimento, setFinalizandoAtendimento] = useState(false);
   
   // Referência para scroll automático
   const messagesEndRef = useRef(null);
@@ -322,6 +328,99 @@ const Dashboard = () => {
     };
   }, [user?.id, atendimentoHabilitado]);
 
+  // Polling para verificar ofertas de atendimentos
+  useEffect(() => {
+    if (!user?.id || !atendimentoHabilitado) {
+      console.log('🔍 [Debug] Polling não iniciado - user.id:', user?.id, 'atendimentoHabilitado:', atendimentoHabilitado);
+      return;
+    }
+
+    console.log('🔍 [Debug] Iniciando polling para operador:', user.id);
+
+    const verificarOfertas = async () => {
+      try {
+        console.log('🔍 [Debug] Verificando ofertas para operador:', user.id);
+        console.log('🔍 [Debug] Modal já aberto?', modalAtendimentoAguardando);
+        console.log('🔍 [Debug] Timestamp atual:', new Date().toISOString());
+        
+        // Verificar se há atendimentos oferecidos para este operador (sistema simplificado)
+        const { data: atendimentos, error } = await supabase
+          .from('atendimentos')
+          .select('id, codigo, cliente_nome, cliente_telefone, cliente_email, descricao_atendimento, status, operador_id, fila_status, updated_at')
+          .eq('operador_id', user.id)
+          .eq('fila_status', 'oferecido')
+          .gte('updated_at', new Date(Date.now() - 300000).toISOString()); // Ofertas dos últimos 5 minutos
+
+        if (error) {
+          console.error('❌ Erro ao verificar ofertas:', error);
+          return;
+        }
+
+        console.log('🔍 [Debug] Ofertas encontradas:', atendimentos?.length || 0, atendimentos);
+        console.log('🔍 [Debug] Modal já aberto?', modalAtendimentoAguardando);
+        
+        if (atendimentos && atendimentos.length > 0) {
+          console.log('✅ [Debug] Oferta detectada! Detalhes:', atendimentos[0]);
+          console.log('🔍 [Debug] Atualizado em:', atendimentos[0].updated_at);
+          console.log('🔍 [Debug] Agora:', new Date().toISOString());
+        } else {
+          console.log('❌ [Debug] Nenhuma oferta encontrada');
+        }
+
+        // Se há uma oferta ativa e não há modal aberta
+        if (atendimentos && atendimentos.length > 0 && !modalAtendimentoAguardando) {
+          const atendimento = atendimentos[0];
+          
+          console.log('🆕 [Ofertas] Nova oferta detectada:', atendimento);
+          console.log('🚀 [Debug] Abrindo modal de atendimento!');
+          
+          setAtendimentoAguardando(atendimento);
+          setModalAtendimentoAguardando(true);
+          
+          // Definir tempo padrão de 40 segundos para aceitar
+          setTempoAceitarAtendimento(40);
+          
+          // Iniciar contagem regressiva
+          const intervalo = setInterval(() => {
+            setTempoAceitarAtendimento(prev => {
+              if (prev <= 1) {
+                clearInterval(intervalo);
+                console.log('⏰ [Ofertas] Timeout - rejeitando automaticamente');
+                
+                // Fechar modal e rejeitar
+                setModalAtendimentoAguardando(false);
+                setAtendimentoAguardando(null);
+                
+                // Rejeitar atendimento
+                atendimentosService.rejeitarAtendimentoAguardando(
+                  atendimento.id,
+                  user.id
+                ).catch(err => console.error('❌ Erro ao rejeitar por timeout:', err));
+                
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+          
+          setIntervalAceitarAtendimento(intervalo);
+        }
+      } catch (error) {
+        console.error('❌ Erro no polling de ofertas:', error);
+      }
+    };
+
+    // Verificar ofertas a cada 3 segundos
+    const intervalId = setInterval(verificarOfertas, 3000);
+    
+    // Verificar imediatamente
+    verificarOfertas();
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [user?.id, atendimentoHabilitado, modalAtendimentoAguardando]);
+
   const carregarAtendimentos = async () => {
     try {
       console.log('🔄 Iniciando carregamento de atendimentos...');
@@ -365,6 +464,12 @@ const Dashboard = () => {
         // Se for operador, carregar apenas os atendimentos do operador
         dados = await atendimentosService.buscarPorOperador(operadorLogado.id);
         console.log('📊 OPERADOR - Total de atendimentos encontrados:', dados.length);
+      }
+      
+      // Validar se dados é um array
+      if (!Array.isArray(dados)) {
+        console.warn('⚠️ Dados retornados não são um array:', dados);
+        dados = [];
       }
       
       console.log('📊 RESULTADO DA BUSCA DE ATENDIMENTOS:');
@@ -411,6 +516,12 @@ const Dashboard = () => {
   // Carregar nomes dos operadores baseado nos IDs dos atendimentos
   const carregarNomesOperadores = async (atendimentosList) => {
     try {
+      // Validar se atendimentosList é um array
+      if (!Array.isArray(atendimentosList)) {
+        console.warn('⚠️ carregarNomesOperadores: atendimentosList não é um array:', atendimentosList);
+        return;
+      }
+      
       const operadoresIds = [...new Set(atendimentosList
         .filter(atendimento => atendimento.operador_id)
         .map(atendimento => atendimento.operador_id)
@@ -458,6 +569,12 @@ const Dashboard = () => {
         console.log(`📊 [Admin] Atendimentos encontrados com status "${status}": ${atendimentosPorStatus.length}`);
       }
       
+      // Validar se atendimentosPorStatus é um array
+      if (!Array.isArray(atendimentosPorStatus)) {
+        console.warn('⚠️ aplicarFiltroStatus: atendimentosPorStatus não é um array:', atendimentosPorStatus);
+        atendimentosPorStatus = [];
+      }
+      
       // Depois aplicar filtro de busca
       const atendimentosFinais = filtrarPorBusca(atendimentosPorStatus);
       setAtendimentosFiltrados(atendimentosFinais);
@@ -468,9 +585,10 @@ const Dashboard = () => {
     } catch (error) {
       console.error('❌ [Admin] Erro ao aplicar filtro de status:', error);
       // Em caso de erro, usar filtro local como fallback
+      const atendimentosArray = Array.isArray(atendimentos) ? atendimentos : [];
       const atendimentosPorStatus = status === 'todos' 
-        ? atendimentos 
-        : atendimentos.filter(atendimento => atendimento.status === status);
+        ? atendimentosArray 
+        : atendimentosArray.filter(atendimento => atendimento.status === status);
       const atendimentosFinais = filtrarPorBusca(atendimentosPorStatus);
       setAtendimentosFiltrados(atendimentosFinais);
     }
@@ -479,6 +597,12 @@ const Dashboard = () => {
   // Carregar nomes das categorias baseado nos IDs dos atendimentos
    const carregarNomesCategorias = async (atendimentosList) => {
      try {
+       // Validar se atendimentosList é um array
+       if (!Array.isArray(atendimentosList)) {
+         console.warn('⚠️ carregarNomesCategorias: atendimentosList não é um array:', atendimentosList);
+         return;
+       }
+       
        const categoriasIds = [...new Set(atendimentosList
          .filter(atendimento => atendimento.categoria_id)
          .map(atendimento => atendimento.categoria_id)
@@ -651,20 +775,20 @@ const Dashboard = () => {
   // Aceitar atendimento aguardando (da fila)
   const handleAceitarAtendimentoAguardando = async () => {
     try {
-      console.log('✅ [Fila] Aceitando atendimento aguardando...');
+      console.log('✅ [Fila Simplificada] Aceitando atendimento aguardando...');
       
       if (intervalAceitarAtendimento) {
         clearInterval(intervalAceitarAtendimento);
         setIntervalAceitarAtendimento(null);
       }
       
-      const resultado = await atendimentosService.aceitarAtendimentoAguardando(
+      const resultado = await filaSimplificadaService.aceitarAtendimento(
         atendimentoAguardando.id,
         user.id
       );
       
-      if (resultado.sucesso) {
-        console.log('✅ [Fila] Atendimento aceito com sucesso!');
+      if (resultado.success) {
+        console.log('✅ [Fila Simplificada] Atendimento aceito com sucesso!');
         
         // Fechar modal
         setModalAtendimentoAguardando(false);
@@ -674,15 +798,17 @@ const Dashboard = () => {
         await carregarAtendimentos();
         
         // Buscar atendimento atualizado e selecionar
-        const atendimentoAtualizado = await atendimentosService.buscarPorId(resultado.atendimento_id);
-        setAtendimentoSelecionado(atendimentoAtualizado);
+        const atendimentoAtualizado = await atendimentosService.buscarPorId(atendimentoAguardando.id);
+        if (atendimentoAtualizado) {
+          setAtendimentoSelecionado(atendimentoAtualizado);
+        }
         
         alert('✅ Atendimento aceito! Você pode começar a atender agora.');
       } else {
-        throw new Error(resultado.mensagem || 'Erro ao aceitar atendimento');
+        throw new Error(resultado.error || 'Erro ao aceitar atendimento');
       }
     } catch (error) {
-      console.error('❌ [Fila] Erro ao aceitar atendimento:', error);
+      console.error('❌ [Fila Simplificada] Erro ao aceitar atendimento:', error);
       alert('❌ Erro ao aceitar atendimento: ' + error.message);
       setModalAtendimentoAguardando(false);
       setAtendimentoAguardando(null);
@@ -692,7 +818,7 @@ const Dashboard = () => {
   // Rejeitar atendimento aguardando (passa para próximo da fila)
   const handleRejeitarAtendimentoAguardando = async () => {
     try {
-      console.log('❌ [Fila] Rejeitando atendimento aguardando...');
+      console.log('❌ [Fila Simplificada] Rejeitando atendimento aguardando...');
       
       if (intervalAceitarAtendimento) {
         clearInterval(intervalAceitarAtendimento);
@@ -700,23 +826,27 @@ const Dashboard = () => {
       }
       
       if (!atendimentoAguardando) {
-        console.log('⚠️ [Fila] Nenhum atendimento para rejeitar');
+        console.log('⚠️ [Fila Simplificada] Nenhum atendimento para rejeitar');
         return;
       }
       
-      const resultado = await atendimentosService.rejeitarAtendimentoAguardando(
+      const resultado = await filaSimplificadaService.recusarAtendimento(
         atendimentoAguardando.id,
         user.id
       );
       
-      console.log('📤 [Fila] Atendimento passado para o próximo da fila:', resultado);
+      if (resultado.success) {
+        console.log('📤 [Fila Simplificada] Atendimento passado para o próximo da fila:', resultado);
+      } else {
+        console.error('❌ [Fila Simplificada] Erro ao rejeitar:', resultado.error);
+      }
       
       // Fechar modal
       setModalAtendimentoAguardando(false);
       setAtendimentoAguardando(null);
       
     } catch (error) {
-      console.error('❌ [Fila] Erro ao rejeitar atendimento:', error);
+      console.error('❌ [Fila Simplificada] Erro ao rejeitar atendimento:', error);
       setModalAtendimentoAguardando(false);
       setAtendimentoAguardando(null);
     }
@@ -1173,9 +1303,69 @@ const Dashboard = () => {
     setModalInformacoes(false);
   };
 
+  // Funções do modal de finalizar atendimento
+  const abrirModalFinalizarAtendimento = (atendimento) => {
+    console.log('🏁 Abrindo modal para finalizar atendimento:', atendimento);
+    setAtendimentoParaFinalizar(atendimento);
+    setModalFinalizarAtendimento(true);
+  };
+
+  const fecharModalFinalizarAtendimento = () => {
+    setModalFinalizarAtendimento(false);
+    setAtendimentoParaFinalizar(null);
+    setFinalizandoAtendimento(false);
+  };
+
+  const confirmarFinalizarAtendimento = async () => {
+    if (!atendimentoParaFinalizar) return;
+
+    try {
+      setFinalizandoAtendimento(true);
+      console.log('🏁 Finalizando atendimento:', atendimentoParaFinalizar.id);
+
+      // Chamar função SQL para finalizar atendimento
+      const { data, error } = await supabase.rpc('finalizar_atendimento_com_fila', {
+        p_atendimento_id: atendimentoParaFinalizar.id
+      });
+
+      if (error) {
+        console.error('❌ Erro ao finalizar atendimento:', error);
+        alert('Erro ao finalizar atendimento: ' + error.message);
+        return;
+      }
+
+      console.log('✅ Atendimento finalizado com sucesso:', data);
+      
+      // Atualizar a lista de atendimentos
+      await carregarAtendimentos();
+      
+      // Fechar modal
+      fecharModalFinalizarAtendimento();
+      
+      // Limpar seleção se o atendimento finalizado estava selecionado
+      if (atendimentoSelecionado?.id === atendimentoParaFinalizar.id) {
+        setAtendimentoSelecionado(null);
+      }
+
+      alert('Atendimento finalizado com sucesso!');
+
+    } catch (error) {
+      console.error('❌ Erro ao finalizar atendimento:', error);
+      alert('Erro ao finalizar atendimento: ' + error.message);
+    } finally {
+      setFinalizandoAtendimento(false);
+    }
+  };
+
   // Filtrar por termo de busca (integrado com filtros de status)
   const filtrarPorBusca = (atendimentosParaFiltrar) => {
     if (!termoBusca) return atendimentosParaFiltrar;
+    
+    // Validar se é um array
+    if (!Array.isArray(atendimentosParaFiltrar)) {
+      console.warn('⚠️ filtrarPorBusca: atendimentosParaFiltrar não é um array:', atendimentosParaFiltrar);
+      return [];
+    }
     
     const termo = termoBusca.toLowerCase();
     return atendimentosParaFiltrar.filter(atendimento =>
@@ -1245,9 +1435,15 @@ const Dashboard = () => {
 
     const executarDistribuicaoAutomatica = async () => {
       try {
-        await atendimentosService.executarDistribuicaoAutomatica();
+        console.log('🔄 [Dashboard] Executando distribuição automática...');
+        const resultado = await filaSimplificadaService.forcarDistribuicao();
+        if (resultado.success) {
+          console.log('✅ [Dashboard] Distribuição automática executada com sucesso');
+        } else {
+          console.log('⚠️ [Dashboard] Nenhuma distribuição necessária:', resultado.error);
+        }
       } catch (error) {
-        console.error('Erro na distribuição automática:', error);
+        console.error('❌ [Dashboard] Erro na distribuição automática:', error);
       }
     };
 
@@ -1368,6 +1564,54 @@ const Dashboard = () => {
       hour: '2-digit',
       minute: '2-digit'
     }).format(data);
+  };
+
+  const formatarHorarioCard = (dataString) => {
+    if (!dataString) return '';
+    
+    const data = new Date(dataString);
+    const agora = new Date();
+    const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+    const dataAtendimento = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+    
+    // Se for hoje, mostrar apenas a hora
+    if (dataAtendimento.getTime() === hoje.getTime()) {
+      return data.toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+    
+    // Se for ontem
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+    if (dataAtendimento.getTime() === ontem.getTime()) {
+      return 'Ontem ' + data.toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+    
+    // Se for este ano, mostrar dia/mês e hora
+    if (data.getFullYear() === agora.getFullYear()) {
+      return data.toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit' 
+      }) + ' ' + data.toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+    
+    // Se for ano anterior, mostrar data completa
+    return data.toLocaleDateString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit',
+      year: '2-digit'
+    }) + ' ' + data.toLocaleTimeString('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
   };
 
   const handleKeyPressObservacao = (e) => {
@@ -1596,18 +1840,19 @@ const Dashboard = () => {
                   >
                     <div className="atendimento-avatar">
                       {(() => {
+                        if (!atendimento.nome) return 'A';
                         const nomes = atendimento.nome.split(' ');
                         const iniciais = nomes.length > 1 
-                          ? nomes[0].charAt(0).toUpperCase() + nomes[nomes.length - 1].charAt(0).toUpperCase()
-                          : nomes[0].charAt(0).toUpperCase();
-                        return iniciais;
+                          ? (nomes[0]?.charAt(0)?.toUpperCase() || '') + (nomes[nomes.length - 1]?.charAt(0)?.toUpperCase() || '')
+                          : (nomes[0]?.charAt(0)?.toUpperCase() || 'A');
+                        return iniciais || 'A';
                       })()}
                     </div>
                     <div className="atendimento-info">
                       <div className="atendimento-header">
                         <div className="atendimento-nome-time">
                           <span className="atendimento-nome">{atendimento.nome}</span>
-                          <span className="atendimento-time">{atendimento.horario}</span>
+                          <span className="atendimento-time">{formatarHorarioCard(atendimento.horario)}</span>
                         </div>
                           <div className="atendimento-codigo">#{atendimento.codigo}</div>
                       </div>
@@ -1638,7 +1883,7 @@ const Dashboard = () => {
                 <div className="chat-header">
                   <div className="chat-user-info">
                     <div className="chat-avatar">
-                      {atendimentoSelecionado.nome.charAt(0).toUpperCase()}
+                      {atendimentoSelecionado.nome?.charAt(0)?.toUpperCase() || 'A'}
                     </div>
                     <div className="chat-details">
                       <div className="nome-container-dashboard">
@@ -1666,11 +1911,18 @@ const Dashboard = () => {
                        Informações
                     </button>
                     <button 
+                      className="btn-action btn-finalizar"
+                      onClick={() => abrirModalFinalizarAtendimento(atendimentoSelecionado)}
+                      title="Finalizar atendimento"
+                    >
+                      Finalizar Atend.
+                    </button>
+                    <button 
                       className="btn-action btn-interromper-ia"
                       onClick={interromperIA}
                       title="Interromper IA e assumir atendimento"
                     >
-                      🤖 Interromper IA
+                      Parar IA
                     </button>
                   </div>
                 </div>
@@ -2300,12 +2552,13 @@ const Dashboard = () => {
             <div className="modal-body-aguardando">
               <div className="atendimento-info-aguardando">
                 <div className="cliente-avatar-aguardando">
-                  {atendimentoAguardando.avatar || atendimentoAguardando.nome?.substring(0, 2).toUpperCase()}
+                  {atendimentoAguardando.avatar || atendimentoAguardando.cliente_nome?.substring(0, 2).toUpperCase()}
                 </div>
                 
                 <div className="cliente-dados-aguardando">
-                  <h3>{atendimentoAguardando.nome}</h3>
-                  <p><strong>Telefone:</strong> {atendimentoAguardando.telefone}</p>
+                  <h3>{atendimentoAguardando.cliente_nome}</h3>
+                  <p><strong>Código:</strong> {atendimentoAguardando.codigo}</p>
+                  <p><strong>Telefone:</strong> {atendimentoAguardando.cliente_telefone}</p>
                   <p className="status-badge">Aguardando Atendimento</p>
                 </div>
               </div>
@@ -2329,6 +2582,55 @@ const Dashboard = () => {
                 onClick={handleAceitarAtendimentoAguardando}
               >
                 Aceitar Atendimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Finalizar Atendimento */}
+      {modalFinalizarAtendimento && atendimentoParaFinalizar && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-finalizar-atendimento">
+            <div className="modal-header">
+              <h2>🏁 Finalizar Atendimento</h2>
+              <button className="modal-close" onClick={fecharModalFinalizarAtendimento}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="finalizar-content">
+                <div className="atendimento-info">
+                  <h3>Confirmar Finalização</h3>
+                  <div className="atendimento-detalhes">
+                    <p><strong>Cliente:</strong> {atendimentoParaFinalizar.nome}</p>
+                    <p><strong>Código:</strong> #{atendimentoParaFinalizar.codigo}</p>
+                    <p><strong>Telefone:</strong> {atendimentoParaFinalizar.telefone}</p>
+                    <p><strong>Status Atual:</strong> 
+                      <span className={`status-badge status-${atendimentoParaFinalizar.status}`}>
+                        {atendimentoParaFinalizar.status}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="confirmacao-message">
+                    <p>⚠️ <strong>Atenção:</strong> Esta ação irá finalizar o atendimento e não poderá ser desfeita.</p>
+                    <p>O status será alterado para <strong>"Finalizado"</strong> e o atendimento será removido da fila.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="btn-secondary" 
+                onClick={fecharModalFinalizarAtendimento}
+                disabled={finalizandoAtendimento}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-finalizar-confirmar" 
+                onClick={confirmarFinalizarAtendimento}
+                disabled={finalizandoAtendimento}
+              >
+                {finalizandoAtendimento ? 'Finalizando...' : '🏁 Finalizar Atendimento'}
               </button>
             </div>
           </div>

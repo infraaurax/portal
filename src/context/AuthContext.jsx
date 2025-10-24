@@ -182,11 +182,10 @@ export const AuthProvider = ({ children }) => {
     console.log('🚪 [AuthContext] Iniciando processo de logout...')
     
     try {
-      console.log('🚪 [AuthContext] Iniciando processo de logout')
-      console.log('🔓 [AuthContext] Passo 1: Desconectando do Supabase Auth')
+      console.log('🔓 [AuthContext] Desconectando do Supabase Auth')
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error('❌ [AuthContext] Passo 1 - Falha: Erro ao desconectar:', error)
+        console.error('❌ [AuthContext] Falha: Erro ao desconectar:', error)
         throw error
       }
       
