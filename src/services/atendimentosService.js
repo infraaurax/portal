@@ -263,6 +263,15 @@ const atendimentosService = {
         .select();
 
       if (error) {
+        if (error.message && error.message.includes('relation "ofertas_operador" does not exist') && novoStatus === 'finalizado') {
+          const { data: dataFinal, error: errFinal } = await supabase
+            .from('atendimentos')
+            .update({ status: 'finalizado' })
+            .eq('id', id)
+            .select();
+          if (errFinal) throw errFinal;
+          return dataFinal;
+        }
         // Se der erro relacionado ao trigger, tentar com status mais seguro
         if (error.message.includes('fila_atendimentos')) {
           console.warn(`⚠️ Erro de trigger detectado ao usar status '${novoStatus}'. Tentando com status seguro...`);
@@ -291,6 +300,21 @@ const atendimentosService = {
       return data;
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      throw error;
+    }
+  },
+
+  async finalizarAtendimento(id) {
+    try {
+      const { data, error } = await supabase
+        .from('atendimentos')
+        .update({ status: 'finalizado' })
+        .eq('id', id)
+        .select();
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Erro ao finalizar atendimento:', error);
       throw error;
     }
   },

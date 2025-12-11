@@ -36,6 +36,26 @@ CREATE INDEX idx_fila_atendimentos_prioridade ON fila_atendimentos(prioridade DE
 CREATE INDEX idx_fila_atendimentos_data_expiracao ON fila_atendimentos(data_expiracao);
 
 -- =====================================================
+-- 1.1. CRIAR TABELA OFERTAS_OPERADOR (se não existir)
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS ofertas_operador (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    atendimento_id UUID NOT NULL REFERENCES atendimentos(id) ON DELETE CASCADE,
+    operador_id UUID NOT NULL REFERENCES operadores(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'oferecido',
+    oferecido_em TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    data_expiracao TIMESTAMPTZ,
+    UNIQUE (atendimento_id, operador_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ofertas_operador_status ON ofertas_operador(status);
+CREATE INDEX IF NOT EXISTS idx_ofertas_operador_operador ON ofertas_operador(operador_id);
+CREATE INDEX IF NOT EXISTS idx_ofertas_operador_atendimento ON ofertas_operador(atendimento_id);
+
+-- =====================================================
 -- 2. FUNÇÃO PARA ADICIONAR ATENDIMENTO À FILA
 -- =====================================================
 

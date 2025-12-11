@@ -163,8 +163,7 @@ const AtendimentosNaoFinalizados = () => {
           statusAtual: atendimento.status
         });
         
-        // Atualizar status para finalizado
-        const resultado = await atendimentosService.atualizarStatus(atendimento.id, 'finalizado');
+        const resultado = await atendimentosService.finalizarAtendimento(atendimento.id);
         
         console.log('✅ Atendimento finalizado:', resultado);
         alert(`Atendimento de ${atendimento.nome} finalizado com sucesso!`);
