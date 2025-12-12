@@ -49,6 +49,7 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [operadoresNomes, setOperadoresNomes] = useState({});
   const [categoriasNomes, setCategoriasNomes] = useState({});
+  const [operadorId, setOperadorId] = useState(null);
   
   // Estados para filtros (apenas para Admin)
   const [isAdmin, setIsAdmin] = useState(false);
@@ -220,90 +221,69 @@ const Dashboard = () => {
 
   // useEffect para escutar notificações de atendimentos aguardando (da fila)
   useEffect(() => {
-    if (!user?.id || !atendimentoHabilitado) {
-      console.log('❌ [Notificações] Usuário não logado ou atendimento desabilitado');
+    if (!operadorId || !atendimentoHabilitado) {
+      console.log('❌ [Notificações] Operador não definido ou atendimento desabilitado');
       return;
     }
 
-    console.log('🔔 [Notificações] Configurando escuta para operador:', user.id);
+    console.log('🔔 [Notificações] Configurando escuta para operador:', operadorId);
 
-    // Canal de notificações específico do operador
-    const channel = supabase.channel(`atendimento_aguardando_${user.id}`)
+    const channel = supabase.channel(`atendimento_aguardando_${operadorId}`)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'atendimentos',
-        filter: `operador_id=eq.${user.id}`
+        filter: `operador_id=eq.${operadorId}`
       }, (payload) => {
         console.log('📨 [Notificações] Notificação recebida:', payload);
-        
-        // Verificar se é um atendimento aguardando
-        if (payload.new.status === 'aguardando' && payload.new.operador_id === user.id) {
+        if (payload.new.status === 'aguardando' && payload.new.operador_id === operadorId) {
           console.log('🆕 [Notificações] Novo atendimento aguardando para você!');
-          
-          // Buscar dados completos do atendimento
           atendimentosService.buscarPorId(payload.new.id)
             .then(atendimento => {
               console.log('✅ [Notificações] Dados do atendimento carregados:', atendimento);
               setAtendimentoAguardando(atendimento);
               setModalAtendimentoAguardando(true);
               setTempoAceitarAtendimento(45);
-              
-              // Capturar dados para o timeout (closure-safe)
               const atendimentoIdParaTimeout = atendimento.id;
-              const operadorIdParaTimeout = user.id;
-              
-              // Iniciar contagem regressiva
+              const operadorIdParaTimeout = operadorId;
               const intervalo = setInterval(async () => {
                 setTempoAceitarAtendimento(prev => {
                   if (prev <= 1) {
                     clearInterval(intervalo);
                     console.log('⏰ [Notificações] Timeout - rejeitando automaticamente');
-                    
-                    // Usar dados capturados no closure
                     const atendimentoId = atendimentoIdParaTimeout;
-                    const operadorId = operadorIdParaTimeout;
-                    
-                    // Fechar modal imediatamente
+                    const operadorIdTmp = operadorIdParaTimeout;
                     setModalAtendimentoAguardando(false);
                     setAtendimentoAguardando(null);
                     setIntervalAceitarAtendimento(null);
-                    
-                    // Rejeitar atendimento em background
                     setTimeout(async () => {
                       try {
-                        if (atendimentoId && operadorId) {
+                        if (atendimentoId && operadorIdTmp) {
                           console.log('🔄 [Timeout] Processando rejeição em background...', {
                             atendimentoId,
-                            operadorId
+                            operadorId: operadorIdTmp
                           });
-                          
                           const resultado = await atendimentosService.rejeitarAtendimentoAguardando(
                             atendimentoId,
-                            operadorId
+                            operadorIdTmp
                           );
-                          
                           console.log('✅ [Timeout] Rejeição processada com sucesso:', resultado);
                         } else {
                           console.error('❌ [Timeout] Dados insuficientes para rejeição:', {
                             atendimentoId,
-                            operadorId
+                            operadorId: operadorIdTmp
                           });
                         }
                       } catch (error) {
                         console.error('❌ [Timeout] Erro ao processar rejeição:', error);
                       }
                     }, 100);
-                    
                     return 0;
                   }
                   return prev - 1;
                 });
               }, 1000);
-              
               setIntervalAceitarAtendimento(intervalo);
-              
-              // Tocar som de notificação
               try {
                 const audio = new Audio('/notification.mp3');
                 audio.play().catch(err => console.log('⚠️ [Notificações] Erro ao tocar som:', err));
@@ -318,7 +298,6 @@ const Dashboard = () => {
       })
       .subscribe();
 
-    // Cleanup
     return () => {
       console.log('🔕 [Notificações] Removendo escuta de notificações');
       supabase.removeChannel(channel);
@@ -326,30 +305,28 @@ const Dashboard = () => {
         clearInterval(intervalAceitarAtendimento);
       }
     };
-  }, [user?.id, atendimentoHabilitado]);
+  }, [operadorId, atendimentoHabilitado]);
 
   // Polling para verificar ofertas de atendimentos
   useEffect(() => {
-    if (!user?.id || !atendimentoHabilitado) {
-      console.log('🔍 [Debug] Polling não iniciado - user.id:', user?.id, 'atendimentoHabilitado:', atendimentoHabilitado);
+    if (!operadorId || !atendimentoHabilitado) {
+      console.log('🔍 [Debug] Polling não iniciado - operadorId:', operadorId, 'atendimentoHabilitado:', atendimentoHabilitado);
       return;
     }
 
-    console.log('🔍 [Debug] Iniciando polling para operador:', user.id);
+    console.log('🔍 [Debug] Iniciando polling para operador:', operadorId);
 
     const verificarOfertas = async () => {
       try {
-        console.log('🔍 [Debug] Verificando ofertas para operador:', user.id);
+        console.log('🔍 [Debug] Verificando ofertas para operador:', operadorId);
         console.log('🔍 [Debug] Modal já aberto?', modalAtendimentoAguardando);
         console.log('🔍 [Debug] Timestamp atual:', new Date().toISOString());
-        
-        // Verificar se há atendimentos oferecidos para este operador (sistema simplificado)
         const { data: atendimentos, error } = await supabase
           .from('atendimentos')
           .select('id, codigo, cliente_nome, cliente_telefone, cliente_email, descricao_atendimento, status, operador_id, fila_status, updated_at')
-          .eq('operador_id', user.id)
+          .eq('operador_id', operadorId)
           .eq('fila_status', 'oferecido')
-          .gte('updated_at', new Date(Date.now() - 300000).toISOString()); // Ofertas dos últimos 5 minutos
+          .gte('updated_at', new Date(Date.now() - 300000).toISOString());
 
         if (error) {
           console.error('❌ Erro ao verificar ofertas:', error);
@@ -358,7 +335,6 @@ const Dashboard = () => {
 
         console.log('🔍 [Debug] Ofertas encontradas:', atendimentos?.length || 0, atendimentos);
         console.log('🔍 [Debug] Modal já aberto?', modalAtendimentoAguardando);
-        
         if (atendimentos && atendimentos.length > 0) {
           console.log('✅ [Debug] Oferta detectada! Detalhes:', atendimentos[0]);
           console.log('🔍 [Debug] Atualizado em:', atendimentos[0].updated_at);
@@ -367,42 +343,29 @@ const Dashboard = () => {
           console.log('❌ [Debug] Nenhuma oferta encontrada');
         }
 
-        // Se há uma oferta ativa e não há modal aberta
         if (atendimentos && atendimentos.length > 0 && !modalAtendimentoAguardando) {
           const atendimento = atendimentos[0];
-          
           console.log('🆕 [Ofertas] Nova oferta detectada:', atendimento);
           console.log('🚀 [Debug] Abrindo modal de atendimento!');
-          
           setAtendimentoAguardando(atendimento);
           setModalAtendimentoAguardando(true);
-          
-          // Definir tempo padrão de 40 segundos para aceitar
           setTempoAceitarAtendimento(40);
-          
-          // Iniciar contagem regressiva
           const intervalo = setInterval(() => {
             setTempoAceitarAtendimento(prev => {
               if (prev <= 1) {
                 clearInterval(intervalo);
                 console.log('⏰ [Ofertas] Timeout - rejeitando automaticamente');
-                
-                // Fechar modal e rejeitar
                 setModalAtendimentoAguardando(false);
                 setAtendimentoAguardando(null);
-                
-                // Rejeitar atendimento
                 atendimentosService.rejeitarAtendimentoAguardando(
                   atendimento.id,
-                  user.id
+                  operadorId
                 ).catch(err => console.error('❌ Erro ao rejeitar por timeout:', err));
-                
                 return 0;
               }
               return prev - 1;
             });
           }, 1000);
-          
           setIntervalAceitarAtendimento(intervalo);
         }
       } catch (error) {
@@ -410,16 +373,12 @@ const Dashboard = () => {
       }
     };
 
-    // Verificar ofertas a cada 3 segundos
     const intervalId = setInterval(verificarOfertas, 3000);
-    
-    // Verificar imediatamente
     verificarOfertas();
-
     return () => {
       clearInterval(intervalId);
     };
-  }, [user?.id, atendimentoHabilitado, modalAtendimentoAguardando]);
+  }, [operadorId, atendimentoHabilitado, modalAtendimentoAguardando]);
 
   const carregarAtendimentos = async () => {
     try {
@@ -447,6 +406,7 @@ const Dashboard = () => {
       console.log('   - ID:', operadorLogado.id);
       console.log('   - Perfil:', operadorLogado.perfil);
       console.log('   - Habilitado:', operadorLogado.habilitado);
+      setOperadorId(operadorLogado.id);
 
       // Verificar se é admin
       const userIsAdmin = operadorLogado.perfil && operadorLogado.perfil.toLowerCase() === 'admin';
@@ -784,7 +744,7 @@ const Dashboard = () => {
       
       const resultado = await filaSimplificadaService.aceitarAtendimento(
         atendimentoAguardando.id,
-        user.id
+        operadorId
       );
       
       if (resultado.success) {
@@ -832,7 +792,7 @@ const Dashboard = () => {
       
       const resultado = await filaSimplificadaService.recusarAtendimento(
         atendimentoAguardando.id,
-        user.id
+        operadorId
       );
       
       if (resultado.success) {
@@ -1429,32 +1389,7 @@ const Dashboard = () => {
     }
   }, [atendimentoPausado]);
 
-  // useEffect para distribuição automática periódica (apenas para admins)
-  useEffect(() => {
-    if (!user?.is_admin) return;
-
-    const executarDistribuicaoAutomatica = async () => {
-      try {
-        console.log('🔄 [Dashboard] Executando distribuição automática...');
-        const resultado = await filaSimplificadaService.forcarDistribuicao();
-        if (resultado.success) {
-          console.log('✅ [Dashboard] Distribuição automática executada com sucesso');
-        } else {
-          console.log('⚠️ [Dashboard] Nenhuma distribuição necessária:', resultado.error);
-        }
-      } catch (error) {
-        console.error('❌ [Dashboard] Erro na distribuição automática:', error);
-      }
-    };
-
-    // Executa a distribuição a cada 30 segundos
-    const intervalo = setInterval(executarDistribuicaoAutomatica, 30000);
-
-    // Executa uma vez imediatamente
-    executarDistribuicaoAutomatica();
-
-    return () => clearInterval(intervalo);
-  }, [user?.is_admin]);
+  
 
   // Função para gerar senha aleatória
   const gerarSenhaAleatoria = () => {

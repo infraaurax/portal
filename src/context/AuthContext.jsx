@@ -32,29 +32,33 @@ export const AuthProvider = ({ children }) => {
       setSession(session)
       if (session) {
         try {
-          // Temporariamente usando dados básicos para evitar problemas com RPC
-          const basicUser = {
+          const operador = await buscarPorEmail(session.user.email)
+          const userFromOperador = operador ? {
+            id: operador.id,
+            email: operador.email,
+            nome: operador.nome || session.user.email.split('@')[0],
+            perfil: operador.perfil || 'Operador',
+            status: operador.status || 'Ativo',
+            habilitado: !!operador.habilitado
+          } : {
             id: session.user.id,
             email: session.user.email,
-            nome: session.user.email.split('@')[0], // Nome temporário baseado no email
+            nome: session.user.email.split('@')[0],
             perfil: 'Operador',
             status: 'Ativo',
             habilitado: true
           }
-          setUser(basicUser)
-          console.log('✅ [AuthContext] Sessão restaurada com dados básicos (modo temporário)')
+          setUser(userFromOperador)
         } catch (error) {
           console.error('❌ [AuthContext] Erro ao processar sessão:', error)
-          // Fallback para dados básicos em caso de erro
-          const basicUser = {
+          setUser({
             id: session.user.id,
             email: session.user.email,
             nome: 'Usuário',
             perfil: 'Operador',
             status: 'Ativo',
             habilitado: true
-          }
-          setUser(basicUser)
+          })
         }
         setIsAuthenticated(true)
       }
@@ -67,16 +71,29 @@ export const AuthProvider = ({ children }) => {
         console.log('🔄 [AuthContext] Auth state changed:', event)
         setSession(session)
         if (session) {
-          // Criar usuário básico apenas com dados do auth
-          const basicUser = {
-            id: session.user.id,
-            email: session.user.email,
-            nome: session.user.nome,
-            status: 'Ativo',
-            habilitado: true
+          try {
+            const operador = await buscarPorEmail(session.user.email)
+            const userFromOperador = operador ? {
+              id: operador.id,
+              email: operador.email,
+              nome: operador.nome || session.user.email,
+              perfil: operador.perfil || 'Operador',
+              status: operador.status || 'Ativo',
+              habilitado: !!operador.habilitado
+            } : {
+              id: session.user.id,
+              email: session.user.email,
+              nome: session.user.email,
+              perfil: 'Operador',
+              status: 'Ativo',
+              habilitado: true
+            }
+            setUser(userFromOperador)
+            setIsAuthenticated(true)
+          } catch (e) {
+            setUser({ id: session.user.id, email: session.user.email, nome: session.user.email, perfil: 'Operador', status: 'Ativo', habilitado: true })
+            setIsAuthenticated(true)
           }
-          setUser(basicUser)
-          setIsAuthenticated(true)
         } else {
           setUser(null)
           setIsAuthenticated(false)

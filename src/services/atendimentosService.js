@@ -386,7 +386,7 @@ const atendimentosService = {
         .from('atendimentos')
         .select('*')
         .eq('status', status)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       
@@ -513,6 +513,10 @@ const atendimentosService = {
         .order('pos_token', { ascending: false })
         .limit(1);
 
+      if (errorMaxPos) {
+        throw errorMaxPos;
+      }
+
       const novoPos = (maxPosToken && maxPosToken.length > 0) ? maxPosToken[0].pos_token + 1 : 1;
 
       // 2. Atualizar pos_token do operador (mover para final da fila)
@@ -552,6 +556,16 @@ const atendimentosService = {
         throw new Error('Atendimento não encontrado ou não está oferecido para você');
       }
 
+      // 4. Re-oferecer imediatamente para o menor pos_token
+      try {
+        const { error: distError } = await supabase.rpc('distribuir_atendimento_simples');
+        if (distError) {
+          console.error('⚠️ Erro ao re-distribuir após rejeição:', distError);
+        }
+      } catch (e) {
+        console.error('⚠️ Erro inesperado na re-distribuição:', e);
+      }
+
       console.log('✅ Atendimento rejeitado com sucesso:', data[0]);
       return { 
         success: true, 
@@ -568,7 +582,7 @@ const atendimentosService = {
   // Executar distribuição automática
   async executarDistribuicaoAutomatica() {
     try {
-      const { data, error } = await supabase.rpc('executar_distribuicao_automatica');
+      const { data, error } = await supabase.rpc('distribuir_atendimento_simples');
       if (error) throw error;
       return data;
     } catch (error) {

@@ -40,6 +40,17 @@ const filaSimplificadaService = {
       }
 
       console.log('✅ Atendimento aceito com sucesso:', data[0]);
+      const { data: maxPosToken } = await supabase
+        .from('operadores')
+        .select('pos_token')
+        .not('pos_token', 'is', null)
+        .order('pos_token', { ascending: false })
+        .limit(1);
+      const novoPos = (maxPosToken && maxPosToken.length > 0) ? maxPosToken[0].pos_token + 1 : 1;
+      await supabase
+        .from('operadores')
+        .update({ pos_token: novoPos, updated_at: new Date().toISOString() })
+        .eq('id', operadorId);
       return { success: true, data: data[0] };
       
     } catch (error) {
@@ -68,6 +79,10 @@ const filaSimplificadaService = {
         .not('pos_token', 'is', null)
         .order('pos_token', { ascending: false })
         .limit(1);
+
+      if (errorMaxPos) {
+        throw errorMaxPos;
+      }
 
       const novoPos = (maxPosToken && maxPosToken.length > 0) ? maxPosToken[0].pos_token + 1 : 1;
 
@@ -222,7 +237,8 @@ const filaSimplificadaService = {
       }
 
       console.log('✅ Distribuição forçada:', data);
-      return { success: true, data };
+      const success = !!(data && data.success === true);
+      return { success, data, message: data?.message };
       
     } catch (error) {
       console.error('❌ Erro no serviço forcarDistribuicao:', error);
@@ -230,6 +246,26 @@ const filaSimplificadaService = {
         success: false, 
         error: error.message || 'Erro ao forçar distribuição' 
       };
+    }
+  },
+
+  async setAutoDistribuicao(ativo) {
+    try {
+      const { error } = await supabase.rpc('set_auto_distribuicao', { p_ativo: !!ativo });
+      if (error) throw error;
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  },
+
+  async getAutoDistribuicao() {
+    try {
+      const { data, error } = await supabase.rpc('get_auto_distribuicao');
+      if (error) throw error;
+      return !!data;
+    } catch {
+      return true;
     }
   }
 };

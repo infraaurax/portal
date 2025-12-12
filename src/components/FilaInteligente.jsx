@@ -13,11 +13,7 @@ const FilaInteligente = () => {
   const [modalAtribuir, setModalAtribuir] = useState(false);
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
   const [operadoresDisponiveis, setOperadoresDisponiveis] = useState([]);
-  const [distribuicaoAutomaticaAtiva, setDistribuicaoAutomaticaAtiva] = useState(() => {
-    // Recuperar estado salvo do localStorage
-    const saved = localStorage.getItem('distribuicaoAutomaticaAtiva');
-    return saved !== null ? JSON.parse(saved) : false;
-  });
+  const [distribuicaoAutomaticaAtiva, setDistribuicaoAutomaticaAtiva] = useState(false);
 
   // Buscar atendimentos aguardando
   const carregarAtendimentosAguardando = async () => {
@@ -85,7 +81,7 @@ const FilaInteligente = () => {
     }
   };
 
-  // Executar distribuição automática
+  // Executar distribuição manual
   const executarDistribuicao = async () => {
     try {
       setLoading(true);
@@ -104,30 +100,14 @@ const FilaInteligente = () => {
     }
   };
 
-  // Iniciar distribuição automática contínua
   const iniciarDistribuicaoAutomatica = async () => {
-    try {
-      console.log('🚀 Iniciando distribuição automática contínua...');
-      await atendimentosService.iniciarDistribuicaoAutomatica(30); // A cada 30 segundos
-      setDistribuicaoAutomaticaAtiva(true);
-      console.log('✅ Distribuição automática contínua iniciada!');
-    } catch (error) {
-      console.error('❌ Erro ao iniciar distribuição automática:', error);
-      alert(`Erro ao iniciar distribuição automática: ${error.message}`);
-    }
+    const r = await filaSimplificadaService.setAutoDistribuicao(true);
+    if (r.success) setDistribuicaoAutomaticaAtiva(true);
   };
 
-  // Parar distribuição automática contínua
-  const pararDistribuicaoAutomatica = () => {
-    try {
-      console.log('⏹️ Parando distribuição automática contínua...');
-      atendimentosService.pararDistribuicaoAutomatica();
-      setDistribuicaoAutomaticaAtiva(false);
-      console.log('✅ Distribuição automática contínua parada!');
-    } catch (error) {
-      console.error('❌ Erro ao parar distribuição automática:', error);
-      alert(`Erro ao parar distribuição automática: ${error.message}`);
-    }
+  const pararDistribuicaoAutomatica = async () => {
+    const r = await filaSimplificadaService.setAutoDistribuicao(false);
+    if (r.success) setDistribuicaoAutomaticaAtiva(false);
   };
 
   // Toggle distribuição automática
@@ -139,36 +119,21 @@ const FilaInteligente = () => {
     }
   };
 
-  // Salvar estado da distribuição automática no localStorage
   useEffect(() => {
-    localStorage.setItem('distribuicaoAutomaticaAtiva', JSON.stringify(distribuicaoAutomaticaAtiva));
-  }, [distribuicaoAutomaticaAtiva]);
+    const carregarAuto = async () => {
+      const ativo = await filaSimplificadaService.getAutoDistribuicao();
+      setDistribuicaoAutomaticaAtiva(ativo);
+    };
+    carregarAuto();
+  }, []);
 
 
 
-  // Buscar dados iniciais e iniciar distribuição automática se estava ativa
+  // Buscar dados iniciais
   useEffect(() => {
     console.log('🚀 Componente FilaInteligente montado');
     carregarAtendimentosAguardando();
-    
-    // Iniciar distribuição automática após 2 segundos apenas se estava ativa
-    if (distribuicaoAutomaticaAtiva) {
-      const timer = setTimeout(() => {
-        console.log('🤖 Iniciando distribuição automática (estado salvo)...');
-        iniciarDistribuicaoAutomatica();
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-
-    // Cleanup: parar distribuição automática quando componente for desmontado
-    return () => {
-      if (atendimentosService.isDistribuicaoAutomaticaAtiva()) {
-        console.log('🧹 Limpando distribuição automática...');
-        atendimentosService.pararDistribuicaoAutomatica();
-      }
-    };
-  }, [distribuicaoAutomaticaAtiva]);
+  }, []);
 
   // Log quando atendimentos são carregados
   useEffect(() => {
@@ -266,22 +231,7 @@ const FilaInteligente = () => {
             {loading ? '🔄' : '⚡'} Distribuir Agora
           </button>
           
-          <button 
-            className="btn-teste"
-            onClick={testarDadosFila}
-            style={{
-              backgroundColor: '#6366f1',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              marginLeft: '8px'
-            }}
-          >
-            🧪 Testar Fila
-          </button>
+          
           
         
           

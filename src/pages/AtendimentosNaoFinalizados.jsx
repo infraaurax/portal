@@ -325,7 +325,7 @@ const AtendimentosNaoFinalizados = () => {
 
                           <div className="card-body">
                             <div className="operador-responsavel">
-                              <strong>Responsável:</strong> {atendimento.operadorResponsavel}
+                              <strong>Responsável:</strong> {atendimento.operador_id ? (atendimento.operadorResponsavel || (atendimento.operador && atendimento.operador.nome) || '-') : 'Sem operador atribuido'}
                             </div>
                             <div className="ultima-mensagem">
                               <strong>Última mensagem:</strong>
@@ -386,7 +386,7 @@ const AtendimentosNaoFinalizados = () => {
               <div className="atendimento-info">
                 <h4>Atendimento: {atendimentoSelecionado.nome}</h4>
                 <p>ID: {atendimentoSelecionado.id}</p>
-                <p>Responsável atual: {atendimentoSelecionado.operadorResponsavel}</p>
+                <p>Responsável atual: {atendimentoSelecionado.operador_id ? (atendimentoSelecionado.operadorResponsavel || (atendimentoSelecionado.operador && atendimentoSelecionado.operador.nome) || '-') : 'Sem operador atribuido'}</p>
               </div>
               
               <div className="operador-selection">

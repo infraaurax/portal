@@ -3,14 +3,18 @@ import { supabase, getRedirectUrl } from '../lib/supabase';
 // Buscar todos os operadores
 export const buscarTodos = async () => {
   try {
-    const { data, error } = await supabase
-      .rpc('get_all_operadores');
-
-    if (error) {
-      console.error('Erro ao buscar operadores via SQL:', error);
-      throw error;
+    const { data, error } = await supabase.rpc('get_all_operadores');
+    if (error || !data) {
+      const { data: directData, error: directError } = await supabase
+        .from('operadores')
+        .select('id, nome, email, cpf, status, habilitado, online, pos_token, perfil, created_at, updated_at')
+        .order('nome');
+      if (directError) {
+        console.error('Erro ao buscar operadores via tabela:', directError);
+        throw directError;
+      }
+      return directData || [];
     }
-
     return data || [];
   } catch (error) {
     console.error('Erro no serviço buscarTodos:', error);
@@ -39,15 +43,24 @@ export const buscarPorId = async (id) => {
 // Buscar operador por email
 export const buscarPorEmail = async (email) => {
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .rpc('get_operador_by_email', { p_email: email });
 
-    if (error) {
-      console.error('Erro ao buscar operador por email via SQL:', error);
-      throw error;
+    if (error || !data || data.length === 0) {
+      const { data: directData, error: directError } = await supabase
+        .from('operadores')
+        .select('*')
+        .eq('email', email)
+        .limit(1)
+        .single();
+      if (directError) {
+        console.error('Erro ao buscar operador por email:', directError);
+        throw directError;
+      }
+      return directData || null;
     }
 
-    return data && data.length > 0 ? data[0] : null;
+    return data[0] || null;
   } catch (error) {
     console.error('Erro no serviço buscarPorEmail:', error);
     throw error;
