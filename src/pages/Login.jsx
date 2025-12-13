@@ -1,188 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
-import { buscarPorEmail } from '../services/operadoresService';
-import { supabase, getRedirectUrl } from '../lib/supabase';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import { useNavigate } from 'react-router-dom';
+ 
 import packageJson from '../../package.json';
 import './Login.css';
 
 const Login = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+ 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loginStep, setLoginStep] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [modalStep, setModalStep] = useState('email'); // 'email', 'code', 'password'
+  const [modalStep, setModalStep] = useState('code');
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
-  const [reauthToken, setReauthToken] = useState('');
+  
   const [modalError, setModalError] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   
-  // Estados para acesso sem senha
-  const [showPasswordlessModal, setShowPasswordlessModal] = useState(false);
-  const [passwordlessEmail, setPasswordlessEmail] = useState('');
-  const [passwordlessStep, setPasswordlessStep] = useState('email'); // 'email', 'success'
-  const [passwordlessError, setPasswordlessError] = useState('');
-  const [passwordlessLoading, setPasswordlessLoading] = useState(false);
   
-  const { login, isAuthenticated } = useAuth();
+  
+  const { loginMagic, verifyMagic, isAuthenticated, session } = useAuth();
+  const navigate = useNavigate();
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
     try {
-      setLoginStep('Validando credenciais...');
-      await new Promise(resolve => setTimeout(resolve, 500)); // Pequena pausa para UX
-      
-      setLoginStep('Verificando permissões...');
-      const result = await login(email, password);
-      
-      if (!result.success) {
-        setError(result.message);
-      } else {
-        setLoginStep('Login realizado com sucesso!');
-        await new Promise(resolve => setTimeout(resolve, 800)); // Mostrar sucesso
+      if (cooldown > 0) {
+        setError(`Por segurança, aguarde ${cooldown}s antes de solicitar novamente.`);
+        return;
       }
-    } catch (err) {
+      setLoginStep('Enviando código...');
+      const result = await loginMagic(email);
+      if (!result.success) {
+        setError(result.error || 'Falha ao enviar código');
+      } else {
+        setForgotPasswordEmail(email);
+        setShowPasswordModal(true);
+        setModalStep('code');
+        setLoginStep('Código enviado!');
+        setCooldown(10);
+      }
+    } catch {
       setError('Erro inesperado durante o login');
     } finally {
       setIsLoading(false);
-      setLoginStep('');
     }
   };
 
-  const handleForgotPassword = () => {
-    setShowPasswordModal(true);
-    setModalStep('email');
-    setForgotPasswordEmail('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setModalError('');
-  };
+  
 
-  const handlePasswordlessAccess = () => {
-    setShowPasswordlessModal(true);
-    setPasswordlessStep('email');
-    setPasswordlessEmail('');
-    setPasswordlessError('');
-  };
+  
 
-  const handlePasswordlessEmailSubmit = async (e) => {
-    e.preventDefault();
-    setPasswordlessError('');
-    setPasswordlessLoading(true);
-    
-    try {
-      // Verificar se o email existe na tabela operadores
-      const operador = await buscarPorEmail(passwordlessEmail);
-      
-      if (!operador) {
-        setPasswordlessError('Email não encontrado no sistema.');
-        return;
-      }
-      
-      if (operador.status === 'inativo') {
-        setPasswordlessError('Usuário inativo. Entre em contato com o administrador.');
-        return;
-      }
-      
-      // Enviar magic link
-      const { data, error } = await supabase.auth.signInWithOtp({
-        email: passwordlessEmail,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: 'https://auraxcred.netlify.app/dashboard' // URL fixa para produção
-        }
-      });
-      
-      if (error) {
-        console.error('Erro ao enviar email:', error);
-        setPasswordlessError('Erro ao enviar email de reset. Tente novamente.');
-        return;
-      }
-      
-      // Mostrar mensagem de sucesso
-      setPasswordlessError('');
-      setPasswordlessStep('success');
-      
-    } catch (error) {
-      console.error('Erro ao verificar email:', error);
-      setPasswordlessError('Erro ao verificar email. Tente novamente.');
-    } finally {
-      setPasswordlessLoading(false);
-    }
-  };
+ 
 
 
 
-  const closePasswordlessModal = () => {
-    setShowPasswordlessModal(false);
-    setPasswordlessStep('email');
-    setPasswordlessEmail('');
-    setPasswordlessError('');
-  };
+  
 
 
 
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    setModalError('');
-    setModalLoading(true);
-    
-    try {
-      // Verificar se o email existe na tabela operadores
-      const operador = await buscarPorEmail(forgotPasswordEmail);
-      
-      if (!operador) {
-        setModalError('Email não encontrado no sistema.');
-        return;
-      }
-      
-      if (operador.status === 'inativo') {
-        setModalError('Usuário inativo. Entre em contato com o administrador.');
-        return;
-      }
-      
-      // Enviar magic link
-      const { data, error } = await supabase.auth.signInWithOtp({
-        email: forgotPasswordEmail,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: 'https://auraxcred.netlify.app/dashboard' // URL fixa para produção
-        }
-      });
-      
-      if (error) {
-        console.error('Erro ao enviar email de reset:', error);
-        setModalError('Erro ao enviar email de reset. Tente novamente.');
-        return;
-      }
-      
-      // Avançar para a etapa de código
-      setModalStep('code');
-      
-    } catch (error) {
-      console.error('Erro ao verificar email:', error);
-      setModalError('Erro ao verificar email. Tente novamente.');
-    } finally {
-      setModalLoading(false);
-    }
-  };
+  
 
   const handleCodeSubmit = async (e) => {
     e.preventDefault();
@@ -199,26 +83,13 @@ const Login = () => {
         return;
       }
       
-      // Verificar o código com o Supabase
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: forgotPasswordEmail,
-        token: fullCode,
-        type: 'recovery'
-      });
-      
-      if (error) {
-        console.error('Erro ao verificar código:', error);
-        setModalError('Código de verificação inválido.');
+      const result = await verifyMagic(forgotPasswordEmail, fullCode);
+      if (!result.success) {
+        setModalError(result.error || 'Código de verificação inválido.');
         return;
       }
-      
-      // Armazenar a sessão temporariamente para usar na alteração de senha
-      if (data.session) {
-        setReauthToken(data.session.access_token);
-      }
-      
-      // Avançar para a etapa de alteração de senha
-      setModalStep('password');
+      setShowPasswordModal(false);
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('Erro ao verificar código:', error);
       setModalError('Erro ao verificar código. Tente novamente.');
@@ -227,66 +98,26 @@ const Login = () => {
     }
   };
 
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-    setModalError('');
-    setModalLoading(true);
-    
-    try {
-      // Validar senhas
-      if (newPassword.length < 6) {
-        setModalError('A senha deve ter pelo menos 6 caracteres.');
-        return;
-      }
-      
-      if (newPassword !== confirmPassword) {
-        setModalError('As senhas não coincidem.');
-        return;
-      }
-      
-      // Verificar se temos o token de recovery
-      if (!reauthToken) {
-        setModalError('Sessão expirada. Reinicie o processo.');
-        return;
-      }
-      
-      // Usar o token de recovery para atualizar a senha
-      const { data, error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-      
-      if (error) {
-        console.error('Erro ao alterar senha:', error);
-        setModalError('Erro ao alterar senha. Tente novamente.');
-        return;
-      }
-      
-      // Fazer logout da sessão de recovery
-      await supabase.auth.signOut();
-      
-      // Sucesso
-      alert('Senha alterada com sucesso! Faça login com sua nova senha.');
-      closeModal();
-      
-    } catch (error) {
-      console.error('Erro ao alterar senha:', error);
-      setModalError('Erro ao alterar senha. Tente novamente.');
-    } finally {
-      setModalLoading(false);
+  useEffect(() => {
+    if (isAuthenticated || session) {
+      navigate('/dashboard', { replace: true });
     }
-  };
+  }, [isAuthenticated, session, navigate]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  
 
   const closeModal = () => {
     setShowPasswordModal(false);
-    setModalStep('email');
+    setModalStep('code');
     setForgotPasswordEmail('');
-    setNewPassword('');
-    setConfirmPassword('');
     setVerificationCode(['', '', '', '', '', '']);
-    setReauthToken('');
     setModalError('');
-    setShowNewPassword(false);
-    setShowConfirmPassword(false);
   };
 
   return (
@@ -317,28 +148,7 @@ const Login = () => {
               />
             </div>
             
-            <div className="form-group">
-              <label htmlFor="password">Senha</label>
-              <div className="password-input-container">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="Digite sua senha"
-                  disabled={isLoading}
-                />
-                <button
-                   type="button"
-                   className="password-toggle"
-                   onClick={() => setShowPassword(!showPassword)}
-                   disabled={isLoading}
-                 >
-                   <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
-                 </button>
-              </div>
-            </div>
+            {/* Fluxo magic login não utiliza senha */}
             
             {error && <div className="error-message">{error}</div>}
             {loginStep && (
@@ -347,26 +157,19 @@ const Login = () => {
               </div>
             )}
             
-            <button type="submit" className="login-button" disabled={isLoading}>
+            <button type="submit" className="login-button" disabled={isLoading || cooldown > 0}>
               {isLoading ? (
                 <>
                   <span className="loading-spinner"></span>
                   Entrando...
                 </>
               ) : (
-                'Entrar'
+                cooldown > 0 ? `Aguardar ${cooldown}s` : 'Entrar'
               )}
             </button>
            
             
-            <button 
-              type="button" 
-              className="passwordless-access-button" 
-              onClick={handlePasswordlessAccess}
-              disabled={isLoading}
-            >
-              Acesso sem senha
-            </button>
+            {/* Botão secundário não é necessário no magic login */}
           </form>
           
          
@@ -377,46 +180,16 @@ const Login = () => {
         </div>
       </div>
       
-      {/* Modal Esqueci Minha Senha */}
+      {/* Modal de Verificação de Acesso (Magic Login) */}
       {showPasswordModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Esqueci Minha Senha</h2>
+              <h2>Acessar via MagicLogin</h2>
               <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
             
-            {modalStep === 'email' && (
-              <form onSubmit={handleEmailSubmit} className="modal-form">
-                <div className="form-group">
-                  <label htmlFor="forgot-email">Email</label>
-                  <input
-                    type="email"
-                    id="forgot-email"
-                    value={forgotPasswordEmail}
-                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                    required
-                    placeholder="Digite seu email"
-                    disabled={modalLoading}
-                  />
-                </div>
-                
-                <div className="info-message">
-                  <p>Após confirmar seu email, enviaremos um link de reset de senha e um código de 6 dígitos para verificação.</p>
-                </div>
-                
-                {modalError && <div className="error-message">{modalError}</div>}
-                
-                <div className="modal-buttons">
-                  <button type="button" className="btn-secondary" onClick={closeModal} disabled={modalLoading}>
-                    Cancelar
-                  </button>
-                  <button type="submit" className="btn-primary" disabled={modalLoading}>
-                    {modalLoading ? 'Verificando...' : 'Verificar Email'}
-                  </button>
-                </div>
-              </form>
-            )}
+            
             
             {modalStep === 'code' && (
               <form onSubmit={handleCodeSubmit} className="modal-form">
@@ -442,6 +215,20 @@ const Login = () => {
                             }
                           }
                         }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const text = (e.clipboardData || window.clipboardData).getData('text');
+                          const digits = text.replace(/\D/g, '').slice(0, 6).split('');
+                          const next = [...verificationCode];
+                          for (let i = 0; i < digits.length; i++) {
+                            const pos = index + i;
+                            if (pos < 6) next[pos] = digits[i];
+                          }
+                          setVerificationCode(next);
+                          const lastFilled = Math.min(index + digits.length - 1, 5);
+                          const nextInput = e.target.parentElement.children[lastFilled];
+                          if (nextInput) nextInput.focus();
+                        }}
                         onKeyDown={(e) => {
                           // Backspace para voltar ao input anterior
                           if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
@@ -452,154 +239,35 @@ const Login = () => {
                         maxLength="1"
                         className="code-digit-input"
                         disabled={modalLoading}
+                        autoFocus={index === 0}
                       />
                     ))}
                   </div>
                 </div>
                 
                 <div className="info-message">
-                  <p>Um email de reset de senha foi enviado para: <strong>{forgotPasswordEmail}</strong></p>
-                  <p>Digite o código de 6 dígitos enviado por email.</p>
+                  <p>Digite o código de 6 dígitos enviado para: <strong>{forgotPasswordEmail}</strong></p>
                 </div>
                 
                 {modalError && <div className="error-message">{modalError}</div>}
                 
                 <div className="modal-buttons">
-                  <button type="button" className="btn-secondary" onClick={() => setModalStep('email')} disabled={modalLoading}>
-                    Voltar
+                  <button type="button" className="btn-secondary" onClick={closeModal} disabled={modalLoading}>
+                    Cancelar
                   </button>
                   <button type="submit" className="btn-primary" disabled={modalLoading}>
-                    {modalLoading ? 'Verificando...' : 'Verificar Código'}
+                    {modalLoading ? 'Validando...' : 'Validar Código'}
                   </button>
                 </div>
               </form>
             )}
             
-            {modalStep === 'password' && (
-              <form onSubmit={handlePasswordSubmit} className="modal-form">
-                <div className="form-group">
-                  <label htmlFor="new-password">Nova Senha</label>
-                  <div className="password-input-container">
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      id="new-password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      placeholder="Digite a nova senha"
-                      disabled={modalLoading}
-                    />
-                    <button
-                       type="button"
-                       className="password-toggle"
-                       onClick={() => setShowNewPassword(!showNewPassword)}
-                       disabled={modalLoading}
-                     >
-                       <FontAwesomeIcon icon={showNewPassword ? faEyeSlash : faEye} />
-                     </button>
-                  </div>
-                </div>
-                
-                <div className="form-group">
-                  <label htmlFor="confirm-password">Confirmar Senha</label>
-                  <div className="password-input-container">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      id="confirm-password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                      placeholder="Confirme a nova senha"
-                      disabled={modalLoading}
-                    />
-                    <button
-                       type="button"
-                       className="password-toggle"
-                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                       disabled={modalLoading}
-                     >
-                       <FontAwesomeIcon icon={showConfirmPassword ? faEyeSlash : faEye} />
-                     </button>
-                  </div>
-                </div>
-                
-                {modalError && <div className="error-message">{modalError}</div>}
-                
-                <div className="modal-buttons">
-                  <button type="button" className="btn-secondary" onClick={() => setModalStep('code')} disabled={modalLoading}>
-                    Voltar
-                  </button>
-                  <button type="submit" className="btn-primary" disabled={modalLoading}>
-                    {modalLoading ? 'Alterando...' : 'Alterar Senha'}
-                  </button>
-                </div>
-              </form>
-            )}
+            
           </div>
         </div>
       )}
       
-      {/* Modal Acesso sem Senha */}
-      {showPasswordlessModal && (
-        <div className="modal-overlay" onClick={closePasswordlessModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Acesso sem Senha</h2>
-              <button className="modal-close" onClick={closePasswordlessModal}>&times;</button>
-            </div>
-            
-            {passwordlessStep === 'email' && (
-              <form onSubmit={handlePasswordlessEmailSubmit} className="modal-form">
-                <div className="form-group">
-                  <label htmlFor="passwordless-email">Email</label>
-                  <input
-                    type="email"
-                    id="passwordless-email"
-                    value={passwordlessEmail}
-                    onChange={(e) => setPasswordlessEmail(e.target.value)}
-                    required
-                    placeholder="Digite seu email"
-                    disabled={passwordlessLoading}
-                  />
-                </div>
-                
-                <div className="info-message">
-                  <p>Digite seu email para receber um link de reset de senha.</p>
-                </div>
-                
-                {passwordlessError && <div className="error-message">{passwordlessError}</div>}
-                
-                <div className="modal-buttons">
-                  <button type="button" className="btn-secondary" onClick={closePasswordlessModal} disabled={passwordlessLoading}>
-                    Cancelar
-                  </button>
-                  <button type="submit" className="btn-primary" disabled={passwordlessLoading}>
-                    {passwordlessLoading ? 'Enviando...' : 'Enviar Link'}
-                  </button>
-                </div>
-              </form>
-            )}
-            
-            {passwordlessStep === 'success' && (
-              <div className="modal-form">
-                <div className="success-message">
-                  <div className="success-icon">✓</div>
-                  <h3>Email enviado com sucesso!</h3>
-                  <p>Um link de reset de senha foi enviado para:</p>
-                  <p><strong>{passwordlessEmail}</strong></p>
-                  <p>Verifique sua caixa de entrada e clique no link para redefinir sua senha e fazer login.</p>
-                </div>
-                
-                <div className="modal-buttons">
-                  <button type="button" className="btn-primary" onClick={closePasswordlessModal}>
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 };

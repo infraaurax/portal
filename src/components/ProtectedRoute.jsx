@@ -3,9 +3,9 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, needsPasswordChange, loading } = useAuth();
+  const { isAuthenticated, needsPasswordChange, loading, session } = useAuth();
 
-  if (loading) {
+  if (loading && !session) {
     return (
       <div style={{ 
         display: 'flex', 
@@ -19,7 +19,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !session) {
     return <Navigate to="/" replace />;
   }
 

@@ -204,17 +204,22 @@ const filaSimplificadaService = {
   async verificarStatusFila() {
     try {
       console.log('📊 [Fila Simplificada] Verificando status da fila...');
-      
-      const { data, error } = await supabase.rpc('status_fila_simples');
-
-      if (error) {
-        console.error('❌ Erro ao verificar status da fila:', error);
-        throw error;
-      }
-
-      console.log('✅ Status da fila:', data);
-      return data;
-      
+      const [aguardandoRes, naFilaRes, oferecidoRes, emRiscoRes] = await Promise.all([
+        supabase.from('atendimentos').select('*', { count: 'exact', head: true }).eq('status', 'aguardando'),
+        supabase.from('atendimentos').select('*', { count: 'exact', head: true }).eq('status', 'aguardando').is('operador_id', null).or('fila_status.is.null,fila_status.eq.na_fila'),
+        supabase.from('atendimentos').select('*', { count: 'exact', head: true }).eq('status', 'aguardando').eq('fila_status', 'oferecido'),
+        supabase.from('atendimentos').select('*', { count: 'exact', head: true }).eq('status', 'aguardando').lt('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+      ]);
+      const status = {
+        aguardando: aguardandoRes.count || 0,
+        na_fila: naFilaRes.count || 0,
+        oferecido: oferecidoRes.count || 0,
+        em_risco: emRiscoRes.count || 0,
+        media_rejeicoes: 0,
+        timestamp: new Date().toISOString()
+      };
+      console.log('✅ Status da fila:', status);
+      return status;
     } catch (error) {
       console.error('❌ Erro no serviço verificarStatusFila:', error);
       return null;

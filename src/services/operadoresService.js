@@ -3,18 +3,11 @@ import { supabase, getRedirectUrl } from '../lib/supabase';
 // Buscar todos os operadores
 export const buscarTodos = async () => {
   try {
-    const { data, error } = await supabase.rpc('get_all_operadores');
-    if (error || !data) {
-      const { data: directData, error: directError } = await supabase
-        .from('operadores')
-        .select('id, nome, email, cpf, status, habilitado, online, pos_token, perfil, created_at, updated_at')
-        .order('nome');
-      if (directError) {
-        console.error('Erro ao buscar operadores via tabela:', directError);
-        throw directError;
-      }
-      return directData || [];
-    }
+    const { data, error } = await supabase
+      .from('operadores')
+      .select('id, nome, email, cpf, status, habilitado, online, pos_token, perfil, created_at, updated_at')
+      .order('nome');
+    if (error) throw error;
     return data || [];
   } catch (error) {
     console.error('Erro no serviço buscarTodos:', error);
@@ -26,14 +19,13 @@ export const buscarTodos = async () => {
 export const buscarPorId = async (id) => {
   try {
     const { data, error } = await supabase
-      .rpc('get_operador_by_id', { p_id: id });
-
-    if (error) {
-      console.error('Erro ao buscar operador por ID via SQL:', error);
-      throw error;
-    }
-
-    return data && data.length > 0 ? data[0] : null;
+      .from('operadores')
+      .select('*')
+      .eq('id', id)
+      .limit(1)
+      .single();
+    if (error) throw error;
+    return data || null;
   } catch (error) {
     console.error('Erro no serviço buscarPorId:', error);
     throw error;
@@ -43,24 +35,16 @@ export const buscarPorId = async (id) => {
 // Buscar operador por email
 export const buscarPorEmail = async (email) => {
   try {
-    let { data, error } = await supabase
-      .rpc('get_operador_by_email', { p_email: email });
-
-    if (error || !data || data.length === 0) {
-      const { data: directData, error: directError } = await supabase
-        .from('operadores')
-        .select('*')
-        .eq('email', email)
-        .limit(1)
-        .single();
-      if (directError) {
-        console.error('Erro ao buscar operador por email:', directError);
-        throw directError;
-      }
-      return directData || null;
-    }
-
-    return data[0] || null;
+    const normalized = (email || '').trim().toLowerCase();
+    const { data, error } = await supabase
+      .from('operadores')
+      .select('*')
+      .eq('email', normalized)
+      .limit(1)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
   } catch (error) {
     console.error('Erro no serviço buscarPorEmail:', error);
     throw error;
@@ -71,14 +55,13 @@ export const buscarPorEmail = async (email) => {
 export const buscarPorCpf = async (cpf) => {
   try {
     const { data, error } = await supabase
-      .rpc('get_operador_by_cpf', { p_cpf: cpf });
-
-    if (error) {
-      console.error('Erro ao buscar operador por CPF via SQL:', error);
-      throw error;
-    }
-
-    return data && data.length > 0 ? data[0] : null;
+      .from('operadores')
+      .select('*')
+      .eq('cpf', cpf)
+      .limit(1)
+      .single();
+    if (error) throw error;
+    return data || null;
   } catch (error) {
     console.error('Erro no serviço buscarPorCpf:', error);
     throw error;
@@ -89,10 +72,10 @@ export const buscarPorCpf = async (cpf) => {
 export const criar = async (operadorData) => {
   try {
     const { nome, email, cpf, perfil = 'Operador' } = operadorData;
-    
+
     // Gerar senha temporária
     const senhaTemporaria = gerarSenhaTemporaria();
-    
+
     // 1. Criar usuário no Supabase Auth (SEM enviar email de confirmação)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email,
@@ -115,7 +98,7 @@ export const criar = async (operadorData) => {
         const { error: confirmError } = await supabase.rpc('confirm_user_email', {
           user_id: authData.user.id
         });
-        
+
         if (confirmError) {
           console.warn('Aviso: Confirmação automática não disponível:', confirmError.message);
           // Continua mesmo se não conseguir confirmar automaticamente
@@ -133,10 +116,10 @@ export const criar = async (operadorData) => {
 
     // 3. Aguardar o trigger criar o operador automaticamente
     console.log('🔄 [operadoresService] Aguardando trigger criar operador automaticamente...');
-    
+
     // Aguardar um pouco para o trigger processar
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     // Buscar o operador criado pelo trigger
     const { data: operadorCriado, error: buscaError } = await supabase
       .from('operadores')
@@ -224,7 +207,7 @@ const enviarMagicLinkComSenha = async (email, nome, senha, cpf, perfil) => {
 export const atualizar = async (id, operadorData) => {
   try {
     const { nome, email, cpf, status, habilitado, perfil } = operadorData;
-    
+
     // Preparar dados para atualização (apenas campos não nulos)
     const updateData = {};
     if (nome !== undefined) updateData.nome = nome;
@@ -233,10 +216,10 @@ export const atualizar = async (id, operadorData) => {
     if (status !== undefined) updateData.status = status;
     if (habilitado !== undefined) updateData.habilitado = habilitado;
     if (perfil !== undefined) updateData.perfil = perfil;
-    
+
     // Adicionar timestamp de atualização
     updateData.updated_at = new Date().toISOString();
-    
+
     const { data, error } = await supabase
       .from('operadores')
       .update(updateData)
@@ -262,19 +245,19 @@ export const alterarHabilitacao = async (id, habilitado) => {
     console.log('🔄 [operadoresService] Alterando habilitação:', { id, habilitado });
     console.log('🔍 [operadoresService] Tipo do ID:', typeof id, 'Valor:', id);
     console.log('🔍 [operadoresService] Tipo do habilitado:', typeof habilitado, 'Valor:', habilitado);
-    
+
     // Verificar se o ID é válido
     if (!id) {
       throw new Error('ID do operador é obrigatório');
     }
-    
+
     // Atualizar diretamente na tabela operadores
     const updateData = {
       habilitado: habilitado,
       online: habilitado, // Se habilitado, também fica online
       updated_at: new Date().toISOString()
     };
-    
+
     // Se estiver habilitando, adicionar à fila (pos_token)
     if (habilitado) {
       // Buscar o próximo token na fila
@@ -285,16 +268,16 @@ export const alterarHabilitacao = async (id, habilitado) => {
         .order('pos_token', { ascending: false })
         .limit(1)
         .single();
-      
+
       const nextToken = (maxToken?.pos_token || 0) + 1;
       updateData.pos_token = nextToken;
-      
+
       console.log('📊 [operadoresService] Próximo token na fila:', nextToken);
     } else {
       // Se desabilitando, remover da fila
       updateData.pos_token = null;
     }
-    
+
     const { data, error } = await supabase
       .from('operadores')
       .update(updateData)
@@ -314,7 +297,7 @@ export const alterarHabilitacao = async (id, habilitado) => {
     }
 
     console.log('✅ [operadoresService] Habilitação alterada com sucesso:', data);
-    
+
     return data;
   } catch (error) {
     console.error('❌ [operadoresService] Erro no serviço alterarHabilitacao:', error);
@@ -326,20 +309,20 @@ export const alterarHabilitacao = async (id, habilitado) => {
 export const alterarStatus = async (id, status) => {
   try {
     console.log('🔄 [operadoresService] Alterando status do operador:', { id, status });
-    
+
     // Verificar se o ID é válido
     if (!id) {
       throw new Error('ID do operador é obrigatório');
     }
-    
+
     // Verificar se o status é válido
     if (!status || (status !== 'disponivel' && status !== 'inativo')) {
       throw new Error('Status deve ser "disponivel" ou "inativo"');
     }
-    
+
     const { data, error } = await supabase
       .from('operadores')
-      .update({ 
+      .update({
         status: status,
         updated_at: new Date().toISOString()
       })
@@ -369,15 +352,12 @@ export const alterarStatus = async (id, status) => {
 // Deletar operador
 export const deletar = async (id) => {
   try {
-    const { data, error } = await supabase
-      .rpc('delete_operador', { p_id: id });
-
-    if (error) {
-      console.error('Erro ao deletar operador via SQL:', error);
-      throw error;
-    }
-
-    return data || false;
+    const { error } = await supabase
+      .from('operadores')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
   } catch (error) {
     console.error('Erro no serviço deletar:', error);
     throw error;
@@ -388,13 +368,11 @@ export const deletar = async (id) => {
 export const buscarPorStatus = async (status) => {
   try {
     const { data, error } = await supabase
-      .rpc('get_operadores_by_status', { p_status: status });
-
-    if (error) {
-      console.error('Erro ao buscar operadores por status via SQL:', error);
-      throw error;
-    }
-
+      .from('operadores')
+      .select('*')
+      .eq('status', status)
+      .order('nome');
+    if (error) throw error;
     return data || [];
   } catch (error) {
     console.error('Erro no serviço buscarPorStatus:', error);
@@ -406,13 +384,11 @@ export const buscarPorStatus = async (status) => {
 export const buscarHabilitados = async () => {
   try {
     const { data, error } = await supabase
-      .rpc('get_operadores_habilitados');
-
-    if (error) {
-      console.error('Erro ao buscar operadores habilitados via SQL:', error);
-      throw error;
-    }
-
+      .from('operadores')
+      .select('*')
+      .eq('habilitado', true)
+      .order('nome');
+    if (error) throw error;
     return data || [];
   } catch (error) {
     console.error('Erro no serviço buscarHabilitados:', error);
@@ -424,13 +400,11 @@ export const buscarHabilitados = async () => {
 export const buscarDesabilitados = async () => {
   try {
     const { data, error } = await supabase
-      .rpc('get_operadores_desabilitados');
-
-    if (error) {
-      console.error('Erro ao buscar operadores desabilitados via SQL:', error);
-      throw error;
-    }
-
+      .from('operadores')
+      .select('*')
+      .eq('habilitado', false)
+      .order('nome');
+    if (error) throw error;
     return data || [];
   } catch (error) {
     console.error('Erro no serviço buscarDesabilitados:', error);
@@ -441,15 +415,11 @@ export const buscarDesabilitados = async () => {
 // Contar total de operadores
 export const contarTotal = async () => {
   try {
-    const { data, error } = await supabase
-      .rpc('count_operadores');
-
-    if (error) {
-      console.error('Erro ao contar operadores via SQL:', error);
-      throw error;
-    }
-
-    return data || 0;
+    const { count, error } = await supabase
+      .from('operadores')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
   } catch (error) {
     console.error('Erro no serviço contarTotal:', error);
     throw error;
@@ -459,15 +429,12 @@ export const contarTotal = async () => {
 // Contar operadores por status
 export const contarPorStatus = async (status) => {
   try {
-    const { data, error } = await supabase
-      .rpc('count_operadores_by_status', { p_status: status });
-
-    if (error) {
-      console.error('Erro ao contar operadores por status via SQL:', error);
-      throw error;
-    }
-
-    return data || 0;
+    const { count, error } = await supabase
+      .from('operadores')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', status);
+    if (error) throw error;
+    return count || 0;
   } catch (error) {
     console.error('Erro no serviço contarPorStatus:', error);
     throw error;
@@ -478,22 +445,22 @@ export const contarPorStatus = async (status) => {
 export const listarTodosOperadores = async () => {
   try {
     console.log('🔄 [operadoresService] Listando todos os operadores...');
-    
+
     const { data: operadores, error } = await supabase
       .from('operadores')
       .select('id, nome, email, cpf, status, habilitado')
       .order('nome');
-    
+
     if (error) {
       console.error('❌ [operadoresService] Erro ao listar operadores:', error);
       throw error;
     }
-    
+
     console.log('✅ [operadoresService] Operadores encontrados:', operadores?.length || 0);
     console.table(operadores);
-    
+
     return operadores;
-    
+
   } catch (error) {
     console.error('❌ [operadoresService] Erro ao listar operadores:', error);
     throw error;
@@ -508,20 +475,20 @@ export const validarSenhaEHabilitar = async (email, senhaDigitada, senhaGerada) 
     console.log('🔍 [operadoresService] Senha gerada:', `"${senhaGerada}"`, 'Tipo:', typeof senhaGerada, 'Tamanho:', senhaGerada?.length);
     console.log('🔍 [operadoresService] Comparação direta:', senhaDigitada === senhaGerada);
     console.log('🔍 [operadoresService] Comparação trim:', senhaDigitada?.trim() === senhaGerada?.trim());
-    
+
     // Validar se as senhas coincidem (com trim para remover espaços)
     const senhaDigitadaLimpa = senhaDigitada?.toString().trim();
     const senhaGeradaLimpa = senhaGerada?.toString().trim();
-    
+
     if (senhaDigitadaLimpa !== senhaGeradaLimpa) {
       console.log('❌ [operadoresService] Senha incorreta');
       console.log('❌ [operadoresService] Digitada limpa:', `"${senhaDigitadaLimpa}"`);
       console.log('❌ [operadoresService] Gerada limpa:', `"${senhaGeradaLimpa}"`);
       throw new Error('Senha incorreta');
     }
-    
+
     console.log('✅ [operadoresService] Senha validada com sucesso');
-    
+
     // Buscar operador por email via SQL
     console.log('🔄 [operadoresService] Buscando operador por email:', email);
     const { data: operador, error } = await supabase
@@ -529,17 +496,17 @@ export const validarSenhaEHabilitar = async (email, senhaDigitada, senhaGerada) 
       .select('*')
       .eq('email', email)
       .single();
-    
+
     if (error) {
       console.error('❌ [operadoresService] Erro ao buscar operador:', error);
       throw error;
     }
-    
+
     if (!operador) {
       console.log('❌ [operadoresService] Operador não encontrado');
       throw new Error('Operador não encontrado');
     }
-    
+
     console.log('✅ [operadoresService] Operador encontrado:', {
       id: operador.id,
       nome: operador.nome,
@@ -547,22 +514,22 @@ export const validarSenhaEHabilitar = async (email, senhaDigitada, senhaGerada) 
       status: operador.status,
       habilitado: operador.habilitado
     });
-    
+
     // Remover verificação de status - apenas validar senha e habilitar
     console.log('ℹ️ [operadoresService] Status do operador será verificado no login, prosseguindo com habilitação');
-    
+
     // Habilitar atendimento via SQL
     console.log('🔄 [operadoresService] Habilitando atendimento para operador ID:', operador.id);
     const resultado = await alterarHabilitacao(operador.id, true);
-    
+
     console.log('✅ [operadoresService] Atendimento habilitado com sucesso');
-    
+
     return {
       sucesso: true,
       operador: resultado || operador,
       mensagem: 'Atendimento habilitado com sucesso!'
     };
-    
+
   } catch (error) {
     console.error('❌ [operadoresService] Erro ao validar senha e habilitar:', error);
     throw error;

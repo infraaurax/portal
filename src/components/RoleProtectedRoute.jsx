@@ -5,36 +5,15 @@ import { buscarPorEmail } from '../services/operadoresService';
 import { useState, useEffect } from 'react';
 
 const RoleProtectedRoute = ({ children, allowedProfiles = [] }) => {
-  const { user, isAuthenticated, loading } = useAuth();
-  const [operadorData, setOperadorData] = useState(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const { user, isAuthenticated, loading, session } = useAuth();
 
-  useEffect(() => {
-    const carregarPerfilUsuario = async () => {
-      if (user?.email) {
-        try {
-          const operador = await buscarPorEmail(user.email);
-          setOperadorData(operador);
-        } catch (error) {
-          console.error('Erro ao carregar perfil do usuário:', error);
-        }
-      }
-      setLoadingProfile(false);
-    };
-
-    if (isAuthenticated && user) {
-      carregarPerfilUsuario();
-    } else {
-      setLoadingProfile(false);
-    }
-  }, [user, isAuthenticated]);
-
-  if (loading || loadingProfile) {
+  // Aguardar até loading finalizar OU ter user disponível
+  if (loading || (!user && session)) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         fontSize: '18px'
       }}>
@@ -43,12 +22,14 @@ const RoleProtectedRoute = ({ children, allowedProfiles = [] }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !session) {
     return <Navigate to="/" replace />;
   }
 
-  const userProfile = operadorData?.perfil || user?.perfil || 'Operador';
-  
+  // Com o AuthContext robusto, user.perfil já deve estar populado
+  // Se não estiver (fallback raro), assume 'Operador' para não bloquear
+  const userProfile = user?.perfil || 'Operador';
+
   // Se não há perfis permitidos especificados, permite acesso
   if (allowedProfiles.length === 0) {
     return children;

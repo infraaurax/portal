@@ -33,13 +33,13 @@ const Dashboard = () => {
   const [intervalAceitar, setIntervalAceitar] = useState(null);
   const [modalEditarNome, setModalEditarNome] = useState(false);
   const [novoNomeCliente, setNovoNomeCliente] = useState('');
-  
+
   // Estados para notificações de fila (atendimentos aguardando)
   const [atendimentoAguardando, setAtendimentoAguardando] = useState(null);
   const [modalAtendimentoAguardando, setModalAtendimentoAguardando] = useState(false);
   const [tempoAceitarAtendimento, setTempoAceitarAtendimento] = useState(45);
   const [intervalAceitarAtendimento, setIntervalAceitarAtendimento] = useState(null);
-  
+
   // Estados para dados do banco
   const [atendimentos, setAtendimentos] = useState([]);
   const [atendimentosFiltrados, setAtendimentosFiltrados] = useState([]);
@@ -50,37 +50,37 @@ const Dashboard = () => {
   const [operadoresNomes, setOperadoresNomes] = useState({});
   const [categoriasNomes, setCategoriasNomes] = useState({});
   const [operadorId, setOperadorId] = useState(null);
-  
+
   // Estados para filtros (apenas para Admin)
   const [isAdmin, setIsAdmin] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  
+
   // Estados para observações
   const [observacoes, setObservacoes] = useState([]);
   const [novaObservacao, setNovaObservacao] = useState('');
   const [carregandoObservacoes, setCarregandoObservacoes] = useState(false);
-  
+
   // Estado para controlar mensagens não lidas
   const [atendimentosComNovasMensagens, setAtendimentosComNovasMensagens] = useState(new Set());
   const [ultimasContagensMensagens, setUltimasContagensMensagens] = useState({});
-  
+
   // Estados para edição de email
   const [modalEditarEmail, setModalEditarEmail] = useState(false);
   const [novoEmail, setNovoEmail] = useState('');
-  
+
   // Estado para o input de mensagem
   const [mensagemInput, setMensagemInput] = useState('');
   const [enviandoMensagem, setEnviandoMensagem] = useState(false);
-  
+
   // Estado para menu de anexos
   const [menuAnexosAberto, setMenuAnexosAberto] = useState(false);
-  
+
   // Estados para modal de finalizar atendimento
   const [modalFinalizarAtendimento, setModalFinalizarAtendimento] = useState(false);
   const [atendimentoParaFinalizar, setAtendimentoParaFinalizar] = useState(null);
   const [finalizandoAtendimento, setFinalizandoAtendimento] = useState(false);
-  
+
   // Referência para scroll automático
   const messagesEndRef = useRef(null);
 
@@ -88,7 +88,7 @@ const Dashboard = () => {
   useEffect(() => {
     carregarAtendimentos();
     carregarNovosAtendimentos();
-    
+
     // Disponibilizar funções de teste no console
     window.supabase = supabase;
     window.testUploadDebug = {
@@ -184,14 +184,14 @@ const Dashboard = () => {
         return true;
       }
     };
-    
+
     console.log('🔧 Funções de debug disponíveis:');
     console.log('- window.testUploadDebug.runAllTests() - Executa todos os testes');
     console.log('- window.testUploadDebug.testSupabaseConnection() - Testa conexão');
     console.log('- window.testUploadDebug.testBucketExists() - Verifica bucket');
     console.log('- window.testUploadDebug.testMensagensTable() - Verifica tabela');
     console.log('- window.testUploadDebug.testFileUpload() - Testa upload');
-  }, []);
+  }, [user?.email]);
 
   // Fechar menu de anexos ao clicar fora
   useEffect(() => {
@@ -385,7 +385,7 @@ const Dashboard = () => {
       console.log('🔄 Iniciando carregamento de atendimentos...');
       setLoading(true);
       setError(null);
-      
+
       if (!user?.email) {
         console.log('❌ Usuário não logado ou email não disponível');
         setError('Usuário não autenticado');
@@ -393,19 +393,27 @@ const Dashboard = () => {
       }
 
       // Buscar dados do operador logado pelo email
-      const operadorLogado = await buscarPorEmail(user.email);
+      // Se não tiver email (caso raro), tenta recuperar do localStorage
+      const userEmail = user?.email; // || localStorage.getItem('last_user_email');
+
+      if (!userEmail) {
+        console.warn('⚠️ [Dashboard] Email do usuário não disponível imediatamente.');
+        // Tentativa de recuperação ou falha graciosa
+        setTimeout(() => setLoading(false), 5000);
+        return;
+      }
+
+      console.log('🔍 [Dashboard] Buscando operador por email:', userEmail);
+      const operadorLogado = await buscarPorEmail(userEmail);
+      console.log('🔍 [Dashboard] Resultado busca operador:', operadorLogado);
+
       if (!operadorLogado || !operadorLogado.id) {
-        console.log('❌ Operador não encontrado na base de dados');
+        console.log('❌ Operador não encontrado na base de dados para o email:', userEmail);
         setError('Operador não encontrado. Verifique seu cadastro.');
         return;
       }
 
-      console.log('👤 OPERADOR LOGADO ENCONTRADO:');
-      console.log('   - Nome:', operadorLogado.nome);
-      console.log('   - Email:', operadorLogado.email);
-      console.log('   - ID:', operadorLogado.id);
-      console.log('   - Perfil:', operadorLogado.perfil);
-      console.log('   - Habilitado:', operadorLogado.habilitado);
+      console.log('👤 OPERADOR LOGADO ENCONTRADO:', operadorLogado.nome);
       setOperadorId(operadorLogado.id);
 
       // Verificar se é admin
@@ -425,17 +433,17 @@ const Dashboard = () => {
         dados = await atendimentosService.buscarPorOperador(operadorLogado.id);
         console.log('📊 OPERADOR - Total de atendimentos encontrados:', dados.length);
       }
-      
+
       // Validar se dados é um array
       if (!Array.isArray(dados)) {
         console.warn('⚠️ Dados retornados não são um array:', dados);
         dados = [];
       }
-      
+
       console.log('📊 RESULTADO DA BUSCA DE ATENDIMENTOS:');
       console.log('   - Total encontrado:', dados.length);
       console.log('   - Tipo de usuário:', userIsAdmin ? 'Admin' : 'Operador');
-      
+
       if (dados.length === 0) {
         console.log('⚠️ NENHUM ATENDIMENTO ENCONTRADO!');
         if (!userIsAdmin) {
@@ -447,7 +455,7 @@ const Dashboard = () => {
       }
       setAtendimentos(dados);
       setAtendimentosFiltrados(dados); // Inicialmente, sem filtro
-      
+
       // Carregar nomes dos operadores e categorias para os atendimentos
       await carregarNomesOperadores(dados);
       await carregarNomesCategorias(dados);
@@ -481,16 +489,16 @@ const Dashboard = () => {
         console.warn('⚠️ carregarNomesOperadores: atendimentosList não é um array:', atendimentosList);
         return;
       }
-      
+
       const operadoresIds = [...new Set(atendimentosList
         .filter(atendimento => atendimento.operador_id)
         .map(atendimento => atendimento.operador_id)
       )];
-      
+
       console.log('🔄 Carregando nomes dos operadores para IDs:', operadoresIds);
-      
+
       const nomesOperadores = {};
-      
+
       for (const operadorId of operadoresIds) {
         try {
           const operador = await buscarPorId(operadorId);
@@ -503,7 +511,7 @@ const Dashboard = () => {
           nomesOperadores[operadorId] = 'Sem operador atribuído';
         }
       }
-      
+
       setOperadoresNomes(nomesOperadores);
       console.log('✅ Nomes dos operadores carregados:', nomesOperadores);
     } catch (err) {
@@ -514,10 +522,10 @@ const Dashboard = () => {
   // Função para filtrar atendimentos por status (apenas para Admin)
   const aplicarFiltroStatus = async (status) => {
     setFiltroStatus(status);
-    
+
     try {
       let atendimentosPorStatus;
-      
+
       if (status === 'todos') {
         // Se for "todos", usar os atendimentos já carregados
         atendimentosPorStatus = atendimentos;
@@ -528,17 +536,17 @@ const Dashboard = () => {
         atendimentosPorStatus = await atendimentosService.buscarPorStatusAdmin(status);
         console.log(`📊 [Admin] Atendimentos encontrados com status "${status}": ${atendimentosPorStatus.length}`);
       }
-      
+
       // Validar se atendimentosPorStatus é um array
       if (!Array.isArray(atendimentosPorStatus)) {
         console.warn('⚠️ aplicarFiltroStatus: atendimentosPorStatus não é um array:', atendimentosPorStatus);
         atendimentosPorStatus = [];
       }
-      
+
       // Depois aplicar filtro de busca
       const atendimentosFinais = filtrarPorBusca(atendimentosPorStatus);
       setAtendimentosFiltrados(atendimentosFinais);
-      
+
       console.log(`🔍 [Admin] Filtro aplicado: ${status}`);
       console.log(`📊 [Admin] Atendimentos após filtro de status: ${atendimentosPorStatus.length}`);
       console.log(`📊 [Admin] Atendimentos após filtro de busca: ${atendimentosFinais.length}`);
@@ -546,8 +554,8 @@ const Dashboard = () => {
       console.error('❌ [Admin] Erro ao aplicar filtro de status:', error);
       // Em caso de erro, usar filtro local como fallback
       const atendimentosArray = Array.isArray(atendimentos) ? atendimentos : [];
-      const atendimentosPorStatus = status === 'todos' 
-        ? atendimentosArray 
+      const atendimentosPorStatus = status === 'todos'
+        ? atendimentosArray
         : atendimentosArray.filter(atendimento => atendimento.status === status);
       const atendimentosFinais = filtrarPorBusca(atendimentosPorStatus);
       setAtendimentosFiltrados(atendimentosFinais);
@@ -555,102 +563,102 @@ const Dashboard = () => {
   };
 
   // Carregar nomes das categorias baseado nos IDs dos atendimentos
-   const carregarNomesCategorias = async (atendimentosList) => {
-     try {
-       // Validar se atendimentosList é um array
-       if (!Array.isArray(atendimentosList)) {
-         console.warn('⚠️ carregarNomesCategorias: atendimentosList não é um array:', atendimentosList);
-         return;
-       }
-       
-       const categoriasIds = [...new Set(atendimentosList
-         .filter(atendimento => atendimento.categoria_id)
-         .map(atendimento => atendimento.categoria_id)
-       )];
-       
-       console.log('🔄 Carregando nomes das categorias para IDs:', categoriasIds);
-       
-       const nomesCategorias = {};
-       
-       for (const categoriaId of categoriasIds) {
-         try {
-           const categoria = await categoriasService.buscarPorId(categoriaId);
-           if (categoria && categoria.nome) {
-             nomesCategorias[categoriaId] = categoria.nome;
-             console.log(`✅ Categoria ${categoriaId}: ${categoria.nome}`);
-           }
-         } catch (err) {
-           console.error(`❌ Erro ao buscar categoria ${categoriaId}:`, err);
-           nomesCategorias[categoriaId] = 'Categoria não encontrada';
-         }
-       }
-       
-       setCategoriasNomes(nomesCategorias);
-       console.log('✅ Nomes das categorias carregados:', nomesCategorias);
-     } catch (err) {
-       console.error('❌ Erro ao carregar nomes das categorias:', err);
-     }
-   };
-
-   // Carregar observações de um atendimento
-    const carregarObservacoes = async (atendimentoId) => {
-      try {
-        setCarregandoObservacoes(true);
-        console.log('🔄 Carregando observações para atendimento:', atendimentoId);
-        
-        const observacoesData = await observacoesService.listarPorAtendimento(atendimentoId);
-        setObservacoes(observacoesData);
-        
-        console.log('✅ Observações carregadas:', observacoesData);
-      } catch (error) {
-        console.error('❌ Erro ao carregar observações:', error);
-        setObservacoes([]);
-      } finally {
-        setCarregandoObservacoes(false);
-      }
-    };
-
-    // Adicionar nova observação
-    const adicionarObservacao = async () => {
-      if (!novaObservacao.trim() || !atendimentoSelecionado || !user) {
+  const carregarNomesCategorias = async (atendimentosList) => {
+    try {
+      // Validar se atendimentosList é um array
+      if (!Array.isArray(atendimentosList)) {
+        console.warn('⚠️ carregarNomesCategorias: atendimentosList não é um array:', atendimentosList);
         return;
       }
 
-      try {
-        console.log('🔄 Adicionando nova observação...');
-        
-        // Buscar o operador pelo email do usuário logado
-        const operador = await buscarPorEmail(user.email);
-        if (!operador) {
-          console.error('❌ Operador não encontrado');
-          return;
+      const categoriasIds = [...new Set(atendimentosList
+        .filter(atendimento => atendimento.categoria_id)
+        .map(atendimento => atendimento.categoria_id)
+      )];
+
+      console.log('🔄 Carregando nomes das categorias para IDs:', categoriasIds);
+
+      const nomesCategorias = {};
+
+      for (const categoriaId of categoriasIds) {
+        try {
+          const categoria = await categoriasService.buscarPorId(categoriaId);
+          if (categoria && categoria.nome) {
+            nomesCategorias[categoriaId] = categoria.nome;
+            console.log(`✅ Categoria ${categoriaId}: ${categoria.nome}`);
+          }
+        } catch (err) {
+          console.error(`❌ Erro ao buscar categoria ${categoriaId}:`, err);
+          nomesCategorias[categoriaId] = 'Categoria não encontrada';
         }
-
-        const observacaoData = {
-          id_atendimento: atendimentoSelecionado.id,
-          observacao: novaObservacao.trim(),
-          operador_id: operador.id
-        };
-
-        const novaObservacaoSalva = await observacoesService.criar(observacaoData);
-        
-        // Atualizar lista de observações
-        setObservacoes(prev => [novaObservacaoSalva, ...prev]);
-        setNovaObservacao('');
-        
-        console.log('✅ Observação adicionada:', novaObservacaoSalva);
-      } catch (error) {
-        console.error('❌ Erro ao adicionar observação:', error);
       }
-    };
 
-    // Função para lidar com Enter no textarea
-    const handleObservacaoKeyPress = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        adicionarObservacao();
+      setCategoriasNomes(nomesCategorias);
+      console.log('✅ Nomes das categorias carregados:', nomesCategorias);
+    } catch (err) {
+      console.error('❌ Erro ao carregar nomes das categorias:', err);
+    }
+  };
+
+  // Carregar observações de um atendimento
+  const carregarObservacoes = async (atendimentoId) => {
+    try {
+      setCarregandoObservacoes(true);
+      console.log('🔄 Carregando observações para atendimento:', atendimentoId);
+
+      const observacoesData = await observacoesService.listarPorAtendimento(atendimentoId);
+      setObservacoes(observacoesData);
+
+      console.log('✅ Observações carregadas:', observacoesData);
+    } catch (error) {
+      console.error('❌ Erro ao carregar observações:', error);
+      setObservacoes([]);
+    } finally {
+      setCarregandoObservacoes(false);
+    }
+  };
+
+  // Adicionar nova observação
+  const adicionarObservacao = async () => {
+    if (!novaObservacao.trim() || !atendimentoSelecionado || !user) {
+      return;
+    }
+
+    try {
+      console.log('🔄 Adicionando nova observação...');
+
+      // Buscar o operador pelo email do usuário logado
+      const operador = await buscarPorEmail(user.email);
+      if (!operador) {
+        console.error('❌ Operador não encontrado');
+        return;
       }
-    };
+
+      const observacaoData = {
+        id_atendimento: atendimentoSelecionado.id,
+        observacao: novaObservacao.trim(),
+        operador_id: operador.id
+      };
+
+      const novaObservacaoSalva = await observacoesService.criar(observacaoData);
+
+      // Atualizar lista de observações
+      setObservacoes(prev => [novaObservacaoSalva, ...prev]);
+      setNovaObservacao('');
+
+      console.log('✅ Observação adicionada:', novaObservacaoSalva);
+    } catch (error) {
+      console.error('❌ Erro ao adicionar observação:', error);
+    }
+  };
+
+  // Função para lidar com Enter no textarea
+  const handleObservacaoKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      adicionarObservacao();
+    }
+  };
 
   // Carregar mensagens de um atendimento
   const carregarMensagens = async (atendimentoId) => {
@@ -658,13 +666,13 @@ const Dashboard = () => {
       console.log('🔄 Carregando mensagens do atendimento:', atendimentoId);
       const mensagens = await mensagensService.buscarPorAtendimento(atendimentoId);
       console.log('✅ Mensagens carregadas:', mensagens);
-      
+
       // Atualizar o estado de mensagens
       setMensagens(prev => ({
-          ...prev,
-          [atendimentoId]: mensagens
-        }));
-      
+        ...prev,
+        [atendimentoId]: mensagens
+      }));
+
       return mensagens;
     } catch (err) {
       console.error('❌ Erro ao carregar mensagens:', err);
@@ -736,33 +744,33 @@ const Dashboard = () => {
   const handleAceitarAtendimentoAguardando = async () => {
     try {
       console.log('✅ [Fila Simplificada] Aceitando atendimento aguardando...');
-      
+
       if (intervalAceitarAtendimento) {
         clearInterval(intervalAceitarAtendimento);
         setIntervalAceitarAtendimento(null);
       }
-      
+
       const resultado = await filaSimplificadaService.aceitarAtendimento(
         atendimentoAguardando.id,
         operadorId
       );
-      
+
       if (resultado.success) {
         console.log('✅ [Fila Simplificada] Atendimento aceito com sucesso!');
-        
+
         // Fechar modal
         setModalAtendimentoAguardando(false);
         setAtendimentoAguardando(null);
-        
+
         // Recarregar atendimentos
         await carregarAtendimentos();
-        
+
         // Buscar atendimento atualizado e selecionar
         const atendimentoAtualizado = await atendimentosService.buscarPorId(atendimentoAguardando.id);
         if (atendimentoAtualizado) {
           setAtendimentoSelecionado(atendimentoAtualizado);
         }
-        
+
         alert('✅ Atendimento aceito! Você pode começar a atender agora.');
       } else {
         throw new Error(resultado.error || 'Erro ao aceitar atendimento');
@@ -779,32 +787,32 @@ const Dashboard = () => {
   const handleRejeitarAtendimentoAguardando = async () => {
     try {
       console.log('❌ [Fila Simplificada] Rejeitando atendimento aguardando...');
-      
+
       if (intervalAceitarAtendimento) {
         clearInterval(intervalAceitarAtendimento);
         setIntervalAceitarAtendimento(null);
       }
-      
+
       if (!atendimentoAguardando) {
         console.log('⚠️ [Fila Simplificada] Nenhum atendimento para rejeitar');
         return;
       }
-      
+
       const resultado = await filaSimplificadaService.recusarAtendimento(
         atendimentoAguardando.id,
         operadorId
       );
-      
+
       if (resultado.success) {
         console.log('📤 [Fila Simplificada] Atendimento passado para o próximo da fila:', resultado);
       } else {
         console.error('❌ [Fila Simplificada] Erro ao rejeitar:', resultado.error);
       }
-      
+
       // Fechar modal
       setModalAtendimentoAguardando(false);
       setAtendimentoAguardando(null);
-      
+
     } catch (error) {
       console.error('❌ [Fila Simplificada] Erro ao rejeitar atendimento:', error);
       setModalAtendimentoAguardando(false);
@@ -834,58 +842,58 @@ const Dashboard = () => {
   // useEffect para polling automático de mensagens (tempo real)
   useEffect(() => {
     let intervalId;
-    
+
     if (atendimentoSelecionado && atendimentoSelecionado.id && atendimentoHabilitado) {
       // Função para verificar novas mensagens
       const verificarNovasMensagens = async () => {
         try {
           const mensagensAtuais = await mensagensService.buscarPorAtendimento(atendimentoSelecionado.id);
           const mensagensExistentes = mensagens[atendimentoSelecionado.id] || [];
-          
+
           // Verificar se há novas mensagens comparando o tamanho dos arrays
-           if (mensagensAtuais.length > mensagensExistentes.length) {
-             console.log('🔔 Novas mensagens detectadas:', mensagensAtuais.length - mensagensExistentes.length);
-             
-             // Atualizar o estado de mensagens
-             setMensagens(prev => ({
-               ...prev,
-               [atendimentoSelecionado.id]: mensagensAtuais
-             }));
-             
-             // Marcar atendimento como tendo novas mensagens (apenas se não estiver selecionado)
-             // Se o atendimento atual não estiver em foco, marcar como tendo novas mensagens
-             setAtendimentosComNovasMensagens(prev => {
-               const newSet = new Set(prev);
-               newSet.add(atendimentoSelecionado.id);
-               return newSet;
-             });
-           }
+          if (mensagensAtuais.length > mensagensExistentes.length) {
+            console.log('🔔 Novas mensagens detectadas:', mensagensAtuais.length - mensagensExistentes.length);
+
+            // Atualizar o estado de mensagens
+            setMensagens(prev => ({
+              ...prev,
+              [atendimentoSelecionado.id]: mensagensAtuais
+            }));
+
+            // Marcar atendimento como tendo novas mensagens (apenas se não estiver selecionado)
+            // Se o atendimento atual não estiver em foco, marcar como tendo novas mensagens
+            setAtendimentosComNovasMensagens(prev => {
+              const newSet = new Set(prev);
+              newSet.add(atendimentoSelecionado.id);
+              return newSet;
+            });
+          }
         } catch (err) {
           console.error('❌ Erro ao verificar novas mensagens:', err);
         }
       };
-      
+
       // Configurar polling a cada 5 segundos
       intervalId = setInterval(verificarNovasMensagens, 5000);
-      
+
       console.log('🔄 Polling de mensagens iniciado para atendimento:', atendimentoSelecionado.id);
     }
-    
+
     // Cleanup: limpar o intervalo quando o componente for desmontado ou atendimento mudar
-     return () => {
-       if (intervalId) {
-         clearInterval(intervalId);
-         console.log('⏹️ Polling de mensagens interrompido');
-       }
-     };
-   }, [atendimentoSelecionado, atendimentoHabilitado, mensagens]);
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log('⏹️ Polling de mensagens interrompido');
+      }
+    };
+  }, [atendimentoSelecionado, atendimentoHabilitado, mensagens]);
 
 
 
   // Função para selecionar atendimento
   const selecionarAtendimento = (atendimento) => {
     setAtendimentoSelecionado(atendimento);
-    
+
     // Remover indicador de novas mensagens para este atendimento
     setAtendimentosComNovasMensagens(prev => {
       const newSet = new Set(prev);
@@ -899,28 +907,28 @@ const Dashboard = () => {
     if (novoNomeCliente.trim() && atendimentoSelecionado) {
       try {
         console.log('Alterando nome do cliente', atendimentoSelecionado.id, 'para', novoNomeCliente);
-        
+
         // Atualizar nome do cliente na tabela atendimentos
         await atendimentosService.atualizarNomeCliente(atendimentoSelecionado.id, novoNomeCliente);
-        
+
         // Atualizar estado local
         setAtendimentoSelecionado({
           ...atendimentoSelecionado,
           nome: novoNomeCliente
         });
-        
+
         // Atualizar lista de atendimentos
-        setAtendimentos(prevAtendimentos => 
-          prevAtendimentos.map(atendimento => 
-            atendimento.id === atendimentoSelecionado.id 
+        setAtendimentos(prevAtendimentos =>
+          prevAtendimentos.map(atendimento =>
+            atendimento.id === atendimentoSelecionado.id
               ? { ...atendimento, nome: novoNomeCliente }
               : atendimento
           )
         );
-        
+
         setModalEditarNome(false);
         setNovoNomeCliente('');
-        
+
         console.log('✅ Nome do cliente atualizado com sucesso');
       } catch (error) {
         console.error('❌ Erro ao salvar nome do cliente:', error);
@@ -934,28 +942,28 @@ const Dashboard = () => {
     if (novoEmail.trim() && atendimentoSelecionado) {
       try {
         console.log('Alterando email do cliente', atendimentoSelecionado.id, 'para', novoEmail);
-        
+
         // Atualizar email do cliente na tabela atendimentos
         await atendimentosService.atualizarEmailCliente(atendimentoSelecionado.id, novoEmail.trim());
-        
+
         // Atualizar estado local
         setAtendimentoSelecionado({
           ...atendimentoSelecionado,
           email: novoEmail.trim()
         });
-        
+
         // Atualizar lista de atendimentos
-        setAtendimentos(prevAtendimentos => 
-          prevAtendimentos.map(atendimento => 
-            atendimento.id === atendimentoSelecionado.id 
+        setAtendimentos(prevAtendimentos =>
+          prevAtendimentos.map(atendimento =>
+            atendimento.id === atendimentoSelecionado.id
               ? { ...atendimento, email: novoEmail.trim() }
               : atendimento
           )
         );
-        
+
         setModalEditarEmail(false);
         setNovoEmail('');
-        
+
         console.log('✅ Email do cliente atualizado com sucesso');
       } catch (error) {
         console.error('❌ Erro ao salvar email do cliente:', error);
@@ -973,28 +981,28 @@ const Dashboard = () => {
 
     try {
       console.log('🤖 Interrompendo IA para atendimento:', atendimentoSelecionado.id);
-      
+
       // Atualizar status do atendimento para 'em-andamento'
       await atendimentosService.atualizarStatus(atendimentoSelecionado.id, 'em-andamento');
-      
+
       // Atualizar estado local
       setAtendimentoSelecionado({
         ...atendimentoSelecionado,
         status: 'em-andamento'
       });
-      
+
       // Atualizar lista de atendimentos
-      setAtendimentos(prevAtendimentos => 
-        prevAtendimentos.map(atendimento => 
-          atendimento.id === atendimentoSelecionado.id 
+      setAtendimentos(prevAtendimentos =>
+        prevAtendimentos.map(atendimento =>
+          atendimento.id === atendimentoSelecionado.id
             ? { ...atendimento, status: 'em-andamento' }
             : atendimento
         )
       );
-      
+
       console.log('✅ IA interrompida com sucesso - atendimento em andamento');
       alert('IA interrompida! O atendimento agora está em andamento.');
-      
+
     } catch (error) {
       console.error('❌ Erro ao interromper IA:', error);
       alert('Erro ao interromper a IA. Tente novamente.');
@@ -1024,36 +1032,36 @@ const Dashboard = () => {
 
   const handleAnexarFoto = () => {
     console.log('📸 Anexar foto/imagem');
-    
+
     if (!atendimentoSelecionado) {
       alert('Selecione um atendimento primeiro.');
       return;
     }
-    
+
     // Criar input file invisível para imagens compatíveis com WhatsApp
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.jpg,.jpeg,.png,.gif,.webp';
     input.style.display = 'none';
-    
+
     input.onchange = async (event) => {
       const file = event.target.files[0];
       if (file) {
         try {
           console.log('📸 Imagem selecionada:', file.name);
-          
+
           // Garantir que o bucket existe
           await createBucketIfNotExists();
-          
+
           // Fazer upload da imagem para o Supabase Storage
           const uploadResult = await uploadFile(file, 'images', atendimentoSelecionado.id);
-          
+
           if (!uploadResult.success) {
             throw new Error('Erro ao fazer upload da imagem');
           }
-          
+
           console.log('✅ Upload da imagem realizado com sucesso:', uploadResult.url);
-          
+
           // Salvar mensagem no banco de dados
           const novaMensagem = {
             atendimento_id: atendimentoSelecionado.id,
@@ -1065,12 +1073,12 @@ const Dashboard = () => {
             file_size: uploadResult.fileSize,
             file_type: uploadResult.fileType
           };
-          
+
           const mensagemSalva = await mensagensService.criar(novaMensagem);
-          
+
           if (mensagemSalva) {
             console.log('✅ Mensagem de imagem salva no banco:', mensagemSalva);
-            
+
             // Enviar imagem via WhatsApp através da EVO
             try {
               await mensagensService.enviarDocumentoViaWhatsApp(
@@ -1084,7 +1092,7 @@ const Dashboard = () => {
               console.error('❌ Erro ao enviar imagem via WhatsApp:', whatsappError);
               // Não bloquear o fluxo se o WhatsApp falhar
             }
-            
+
             // Enviar imagem via webhook (convertida para base64)
             try {
               await mensagensService.enviarImagemViaWebhook(
@@ -1100,31 +1108,31 @@ const Dashboard = () => {
               console.error('❌ Erro ao enviar imagem via webhook:', webhookError);
               // Não bloquear o fluxo se o webhook falhar
             }
-            
+
             alert('Imagem enviada com sucesso!');
-            
+
             // Recarregar mensagens para mostrar a nova imagem
             await carregarMensagens(atendimentoSelecionado.id);
           } else {
             throw new Error('Erro ao salvar mensagem no banco');
           }
-          
+
         } catch (error) {
           console.error('❌ Erro ao processar imagem:', error);
           alert('Erro ao processar a imagem. Tente novamente.');
         }
       }
     };
-    
+
     // Adicionar ao DOM e clicar
     document.body.appendChild(input);
     input.click();
-    
+
     // Remover do DOM após uso
     setTimeout(() => {
       document.body.removeChild(input);
     }, 1000);
-    
+
     fecharMenuAnexos();
   };
 
@@ -1136,41 +1144,41 @@ const Dashboard = () => {
 
   const handleAnexarDocumento = () => {
     console.log('📄 Anexar documento');
-    
+
     if (!atendimentoSelecionado) {
       alert('Selecione um atendimento primeiro.');
       return;
     }
-    
+
     // Criar input file invisível para documentos
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.zip,.rar';
     input.style.display = 'none';
-    
+
     input.onchange = async (event) => {
       const file = event.target.files[0];
       if (file) {
         try {
           console.log('📄 Arquivo selecionado:', file.name);
-          
+
           // Garantir que o bucket existe
           await createBucketIfNotExists();
-          
+
           // Determinar o tipo de arquivo (document ou image)
           const isImage = file.type.startsWith('image/');
           const fileType = isImage ? 'images' : 'documents';
           const messageType = isImage ? 'photo' : 'document';
-          
+
           // Fazer upload do arquivo para o Supabase Storage
           const uploadResult = await uploadFile(file, fileType, atendimentoSelecionado.id);
-          
+
           if (!uploadResult.success) {
             throw new Error('Erro ao fazer upload do arquivo');
           }
-          
+
           console.log('✅ Upload realizado com sucesso:', uploadResult.url);
-          
+
           // Salvar mensagem no banco de dados
           const novaMensagem = {
             atendimento_id: atendimentoSelecionado.id,
@@ -1182,12 +1190,12 @@ const Dashboard = () => {
             file_size: uploadResult.fileSize,
             file_type: uploadResult.fileType
           };
-          
+
           const mensagemSalva = await mensagensService.criar(novaMensagem);
-          
+
           if (mensagemSalva) {
             console.log('✅ Mensagem salva no banco:', mensagemSalva);
-            
+
             // Enviar documento via WhatsApp através da EVO
             try {
               await mensagensService.enviarDocumentoViaWhatsApp(
@@ -1201,7 +1209,7 @@ const Dashboard = () => {
               console.error('❌ Erro ao enviar documento via WhatsApp:', whatsappError);
               // Não bloquear o fluxo se o WhatsApp falhar
             }
-            
+
             // Enviar documento via webhook específico
             try {
               await mensagensService.enviarDocumentoViaWebhook(
@@ -1217,34 +1225,34 @@ const Dashboard = () => {
               console.error('❌ Erro ao enviar documento via webhook:', webhookError);
               // Não bloquear o fluxo se o webhook falhar
             }
-            
+
             alert(`${isImage ? 'Imagem' : 'Documento'} enviado com sucesso!`);
-            
+
             // Recarregar mensagens para mostrar o novo arquivo
             await carregarMensagens(atendimentoSelecionado.id);
           } else {
             throw new Error('Erro ao salvar mensagem no banco');
           }
-          
+
         } catch (error) {
           console.error('❌ Erro ao processar documento:', error);
           alert('Erro ao processar o arquivo. Tente novamente.');
         }
       }
     };
-    
+
     // Adicionar ao DOM e clicar
     document.body.appendChild(input);
     input.click();
-    
+
     // Remover do DOM após uso
     setTimeout(() => {
       document.body.removeChild(input);
     }, 1000);
-    
+
     fecharMenuAnexos();
   };
-  
+
 
 
 
@@ -1254,7 +1262,7 @@ const Dashboard = () => {
     console.log('📝 Descrição do atendimento:', atendimento.descricao);
     setAtendimentoSelecionado(atendimento);
     setModalInformacoes(true);
-    
+
     // Carregar observações do atendimento
     carregarObservacoes(atendimento.id);
   };
@@ -1295,13 +1303,13 @@ const Dashboard = () => {
       }
 
       console.log('✅ Atendimento finalizado com sucesso:', data);
-      
+
       // Atualizar a lista de atendimentos
       await carregarAtendimentos();
-      
+
       // Fechar modal
       fecharModalFinalizarAtendimento();
-      
+
       // Limpar seleção se o atendimento finalizado estava selecionado
       if (atendimentoSelecionado?.id === atendimentoParaFinalizar.id) {
         setAtendimentoSelecionado(null);
@@ -1320,13 +1328,13 @@ const Dashboard = () => {
   // Filtrar por termo de busca (integrado com filtros de status)
   const filtrarPorBusca = (atendimentosParaFiltrar) => {
     if (!termoBusca) return atendimentosParaFiltrar;
-    
+
     // Validar se é um array
     if (!Array.isArray(atendimentosParaFiltrar)) {
       console.warn('⚠️ filtrarPorBusca: atendimentosParaFiltrar não é um array:', atendimentosParaFiltrar);
       return [];
     }
-    
+
     const termo = termoBusca.toLowerCase();
     return atendimentosParaFiltrar.filter(atendimento =>
       (atendimento.codigo && atendimento.codigo.toString().toLowerCase().includes(termo)) ||
@@ -1355,7 +1363,7 @@ const Dashboard = () => {
         setAtendimentoHabilitado(false);
       }
     };
-    
+
     if (user) {
       verificarHabilitacaoOperador();
     }
@@ -1389,7 +1397,7 @@ const Dashboard = () => {
     }
   }, [atendimentoPausado]);
 
-  
+
 
   // Função para gerar senha aleatória
   const gerarSenhaAleatoria = () => {
@@ -1503,49 +1511,49 @@ const Dashboard = () => {
 
   const formatarHorarioCard = (dataString) => {
     if (!dataString) return '';
-    
+
     const data = new Date(dataString);
     const agora = new Date();
     const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
     const dataAtendimento = new Date(data.getFullYear(), data.getMonth(), data.getDate());
-    
+
     // Se for hoje, mostrar apenas a hora
     if (dataAtendimento.getTime() === hoje.getTime()) {
-      return data.toLocaleTimeString('pt-BR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return data.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
       });
     }
-    
+
     // Se for ontem
     const ontem = new Date(hoje);
     ontem.setDate(ontem.getDate() - 1);
     if (dataAtendimento.getTime() === ontem.getTime()) {
-      return 'Ontem ' + data.toLocaleTimeString('pt-BR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return 'Ontem ' + data.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
       });
     }
-    
+
     // Se for este ano, mostrar dia/mês e hora
     if (data.getFullYear() === agora.getFullYear()) {
-      return data.toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: '2-digit' 
-      }) + ' ' + data.toLocaleTimeString('pt-BR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      return data.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit'
+      }) + ' ' + data.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
       });
     }
-    
+
     // Se for ano anterior, mostrar data completa
-    return data.toLocaleDateString('pt-BR', { 
-      day: '2-digit', 
+    return data.toLocaleDateString('pt-BR', {
+      day: '2-digit',
       month: '2-digit',
       year: '2-digit'
-    }) + ' ' + data.toLocaleTimeString('pt-BR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    }) + ' ' + data.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -1589,11 +1597,11 @@ const Dashboard = () => {
             </p>
           </div>
           <div className="header-actions">
-           
+
             <div className="action-buttons">
               {!atendimentoHabilitado ? (
-                <button 
-                  className="btn-warning" 
+                <button
+                  className="btn-warning"
                   onClick={abrirModalHabilitacao}
                 >
                   🔓 Habilitar Atendimentos
@@ -1601,15 +1609,15 @@ const Dashboard = () => {
               ) : (
                 <>
                   {!atendimentoPausado ? (
-                    <button 
-                      className="btn-warning" 
+                    <button
+                      className="btn-warning"
                       onClick={pausarAtendimentos}
                     >
                       Pausar Atendimentos
                     </button>
                   ) : (
-                    <button 
-                      className="btn-timer" 
+                    <button
+                      className="btn-timer"
                       onClick={abrirModalConfirmacao}
                     >
                       ⏱️ Pausado - {formatarTempo(tempoRestante)}
@@ -1630,116 +1638,116 @@ const Dashboard = () => {
             <div className="sidebar-header">
               <h3>{isAdmin ? 'Todos os Atendimentos' : 'Meus Atendimentos'}</h3>
               <div className='sidebar-content'>
-              <div className="search-filter-container">
-                <div className="search-container">
-                  <input
-                    type="text"
-                    className="search-input"
-                    placeholder={isAdmin ? "Buscar em todos os atendimentos..." : "Buscar nos meus atendimentos..."}
-                    value={termoBusca}
-                    onChange={(e) => setTermoBusca(e.target.value)}
-                  />
-                </div>
-                {isAdmin && (
-                  <div className="filter-container">
-                    <button 
-                      className="filter-toggle-btn"
-                      onClick={() => setMostrarFiltros(!mostrarFiltros)}
-                    >
-                      🔍 Filtros
-                    </button>
-                    {mostrarFiltros && (
-                      <div className="filter-dropdown">
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'todos' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('todos')}
-                          >
-                            Todos
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'novo' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('novo')}
-                          >
-                            Novo
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'em-andamento' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('em-andamento')}
-                          >
-                            Em andamento
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'atendimento_ia' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('atendimento_ia')}
-                          >
-                            Atendimento IA
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'aguardando' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('aguardando')}
-                          >
-                            Aguardando
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'transferindo' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('transferindo')}
-                          >
-                            Transferindo
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'pausado' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('pausado')}
-                          >
-                            Pausado
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'finalizado' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('finalizado')}
-                          >
-                            Finalizado
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'abandonado' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('abandonado')}
-                          >
-                            Abandonado
-                          </button>
-                        </div>
-                        <div className="filter-option">
-                          <button 
-                            className={`filter-btn ${filtroStatus === 'nao_atendido' ? 'active' : ''}`}
-                            onClick={() => aplicarFiltroStatus('nao_atendido')}
-                          >
-                            Não Atendido
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                <div className="search-filter-container">
+                  <div className="search-container">
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder={isAdmin ? "Buscar em todos os atendimentos..." : "Buscar nos meus atendimentos..."}
+                      value={termoBusca}
+                      onChange={(e) => setTermoBusca(e.target.value)}
+                    />
                   </div>
-                )}
+                  {isAdmin && (
+                    <div className="filter-container">
+                      <button
+                        className="filter-toggle-btn"
+                        onClick={() => setMostrarFiltros(!mostrarFiltros)}
+                      >
+                        🔍 Filtros
+                      </button>
+                      {mostrarFiltros && (
+                        <div className="filter-dropdown">
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'todos' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('todos')}
+                            >
+                              Todos
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'novo' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('novo')}
+                            >
+                              Novo
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'em-andamento' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('em-andamento')}
+                            >
+                              Em andamento
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'atendimento_ia' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('atendimento_ia')}
+                            >
+                              Atendimento IA
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'aguardando' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('aguardando')}
+                            >
+                              Aguardando
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'transferindo' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('transferindo')}
+                            >
+                              Transferindo
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'pausado' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('pausado')}
+                            >
+                              Pausado
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'finalizado' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('finalizado')}
+                            >
+                              Finalizado
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'abandonado' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('abandonado')}
+                            >
+                              Abandonado
+                            </button>
+                          </div>
+                          <div className="filter-option">
+                            <button
+                              className={`filter-btn ${filtroStatus === 'nao_atendido' ? 'active' : ''}`}
+                              onClick={() => aplicarFiltroStatus('nao_atendido')}
+                            >
+                              Não Atendido
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              </div>
-              
+
 
             </div>
-            
+
             <div className="atendimentos-list">
               {!atendimentoHabilitado ? (
                 <div className="disabled-state">
@@ -1768,7 +1776,7 @@ const Dashboard = () => {
                 </div>
               ) : (
                 atendimentosFiltrados.map(atendimento => (
-                  <div 
+                  <div
                     key={atendimento.id}
                     className={`atendimento-item ${atendimentoSelecionado?.id === atendimento.id ? 'active' : ''} ${atendimentosComNovasMensagens.has(atendimento.id) ? 'has-new-messages' : ''}`}
                     onClick={() => selecionarAtendimento(atendimento)}
@@ -1777,7 +1785,7 @@ const Dashboard = () => {
                       {(() => {
                         if (!atendimento.nome) return 'A';
                         const nomes = atendimento.nome.split(' ');
-                        const iniciais = nomes.length > 1 
+                        const iniciais = nomes.length > 1
                           ? (nomes[0]?.charAt(0)?.toUpperCase() || '') + (nomes[nomes.length - 1]?.charAt(0)?.toUpperCase() || '')
                           : (nomes[0]?.charAt(0)?.toUpperCase() || 'A');
                         return iniciais || 'A';
@@ -1789,7 +1797,7 @@ const Dashboard = () => {
                           <span className="atendimento-nome">{atendimento.nome}</span>
                           <span className="atendimento-time">{formatarHorarioCard(atendimento.horario)}</span>
                         </div>
-                          <div className="atendimento-codigo">#{atendimento.codigo}</div>
+                        <div className="atendimento-codigo">#{atendimento.codigo}</div>
                       </div>
                       <div className="atendimento-preview">
                         <div className="status-message-column">
@@ -1823,7 +1831,7 @@ const Dashboard = () => {
                     <div className="chat-details">
                       <div className="nome-container-dashboard">
                         <h4>{atendimentoSelecionado.nome}</h4>
-                        <button 
+                        <button
                           className="btn-edit-nome-dashboard"
                           onClick={() => {
                             setNovoNomeCliente(atendimentoSelecionado.nome);
@@ -1834,25 +1842,25 @@ const Dashboard = () => {
                           ✏️
                         </button>
                       </div>
-                      
-                      
+
+
                     </div>
                   </div>
                   <div className="chat-actions">
-                    <button 
+                    <button
                       className="btn-action btn-info"
                       onClick={() => abrirModalInformacoes(atendimentoSelecionado)}
                     >
-                       Informações
+                      Informações
                     </button>
-                    <button 
+                    <button
                       className="btn-action btn-finalizar"
                       onClick={() => abrirModalFinalizarAtendimento(atendimentoSelecionado)}
                       title="Finalizar atendimento"
                     >
                       Finalizar Atend.
                     </button>
-                    <button 
+                    <button
                       className="btn-action btn-interromper-ia"
                       onClick={interromperIA}
                       title="Interromper IA e assumir atendimento"
@@ -1863,240 +1871,240 @@ const Dashboard = () => {
                 </div>
 
                 <div className="chat-messages">
-                   {mensagens[atendimentoSelecionado.id]?.map(mensagem => {
-                     const getRoleDisplayName = (role) => {
-                       switch(role) {
-                         case 'cliente': return 'CLIENTE';
-                         case 'agente': return 'AGENTE IA';
-                         case 'operador': return 'OPERADOR';
-                         default: return role?.toUpperCase() || 'CLIENTE';
-                       }
-                     };
-                     
-                     // Função para renderizar conteúdo da mensagem baseado no tipo
-                     const renderMessageContent = (mensagem) => {
-                       const { mensagem: text, type, document_name, conteudo } = mensagem;
-                       
-                       // Se for uma mensagem de texto (padrão)
-                       if (!type || type === 'text') {
-                         if (!text) return null;
-                         
-                         // Dividir o texto em linhas
-                         const lines = text.split('\n');
-                         
-                         return lines.map((line, index) => {
-                           // Processar formatação markdown básica
-                           let processedLine = line
-                             // Negrito **texto**
-                             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                             // Itálico *texto*
-                             .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
-                             // Links [texto](url)
-                             .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-                           
-                           // Se a linha está vazia, renderizar como quebra de linha
-                           if (line.trim() === '') {
-                             return <br key={index} />;
-                           }
-                           
-                           // Se a linha começa com -, renderizar como item de lista
-                           if (line.trim().startsWith('- ')) {
-                             const listItem = line.replace(/^\s*-\s*/, '');
-                             const processedItem = listItem
-                               .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                               .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
-                               .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-                             
-                             return (
-                               <div key={index} className="message-list-item">
-                                 <span className="list-bullet">•</span>
-                                 <span dangerouslySetInnerHTML={{ __html: processedItem }} />
-                               </div>
-                             );
-                           }
-                           
-                           // Renderizar linha normal
-                           return (
-                             <div key={index} className="message-line">
-                               <span dangerouslySetInnerHTML={{ __html: processedLine }} />
-                             </div>
-                           );
-                         });
-                       }
-                       
-                       // Se for uma imagem
-                       if (type === 'photo') {
-                         return (
-                           <div className="message-image">
-                             <img 
-                               src={conteudo} 
-                               alt={document_name || 'Imagem'}
-                               className="chat-image"
-                               onClick={() => window.open(conteudo, '_blank')}
-                               onError={(e) => {
-                                 e.target.style.display = 'none';
-                                 e.target.nextSibling.style.display = 'block';
-                               }}
-                             />
-                             <div className="image-error" style={{display: 'none'}}>
-                               <FontAwesomeIcon icon={faImage} className="photo-icon" />
-                               <span>Erro ao carregar imagem</span>
-                             </div>
-                             {document_name && (
-                               <div className="file-info">
-                                 <span className="file-name">{document_name}</span>
-                               </div>
-                             )}
-                           </div>
-                         );
-                       }
-                       
-                       // Se for um documento
-                       if (type === 'document') {
-                         const fileType = mensagem.file_type || '';
-                         const fileName = document_name || '';
-                         
-                         const getDocumentIcon = () => {
-                           const lowerFileType = fileType.toLowerCase();
-                           const lowerFileName = fileName.toLowerCase();
-                           
-                           // Verificar primeiro pelo MIME type
-                           if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return faFilePdf;
-                           if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return faFileWord;
-                           if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return faFileExcel;
-                           if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return faFilePowerpoint;
-                           if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return faFileArchive;
-                           if (lowerFileType.includes('video')) return faFileVideo;
-                           if (lowerFileType.includes('audio')) return faFileAudio;
-                           if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return faFileCode;
-                           
-                           // Fallback para extensão do arquivo
-                           if (lowerFileName.endsWith('.pdf')) return faFilePdf;
-                           if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return faFileWord;
-                           if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return faFileExcel;
-                           if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return faFilePowerpoint;
-                           if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return faFileArchive;
-                           if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return faFileVideo;
-                           if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return faFileAudio;
-                           if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return faFileCode;
-                           
-                           return faFile;
-                         };
-                         
-                         const getDocumentClass = () => {
-                           const lowerFileType = fileType.toLowerCase();
-                           const lowerFileName = fileName.toLowerCase();
-                           
-                           // Verificar primeiro pelo MIME type
-                           if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return 'pdf-icon';
-                           if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return 'word-icon';
-                           if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return 'excel-icon';
-                           if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return 'powerpoint-icon';
-                           if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return 'archive-icon';
-                           if (lowerFileType.includes('video')) return 'video-icon';
-                           if (lowerFileType.includes('audio')) return 'audio-icon';
-                           if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return 'code-icon';
-                           
-                           // Fallback para extensão do arquivo
-                           if (lowerFileName.endsWith('.pdf')) return 'pdf-icon';
-                           if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return 'word-icon';
-                           if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return 'excel-icon';
-                           if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return 'powerpoint-icon';
-                           if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return 'archive-icon';
-                           if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return 'video-icon';
-                           if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return 'audio-icon';
-                           if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return 'code-icon';
-                           
-                           return 'file-icon';
-                         };
-                         
-                         const getDocumentType = () => {
-                           const lowerFileType = fileType.toLowerCase();
-                           const lowerFileName = fileName.toLowerCase();
-                           
-                           // Verificar primeiro pelo MIME type
-                           if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return 'PDF';
-                           if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return 'WORD';
-                           if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return 'EXCEL';
-                           if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return 'POWERPOINT';
-                           if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return 'ARQUIVO';
-                           if (lowerFileType.includes('video')) return 'VÍDEO';
-                           if (lowerFileType.includes('audio')) return 'ÁUDIO';
-                           if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return 'CÓDIGO';
-                           
-                           // Fallback para extensão do arquivo
-                           if (lowerFileName.endsWith('.pdf')) return 'PDF';
-                           if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return 'WORD';
-                           if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return 'EXCEL';
-                           if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return 'POWERPOINT';
-                           if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return 'ARQUIVO';
-                           if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return 'VÍDEO';
-                           if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return 'ÁUDIO';
-                           if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return 'CÓDIGO';
-                           
-                           return 'DOCUMENTO';
-                         };
-                         
-                         const handleDocumentClick = () => {
-                           // Todos os documentos agora abrem em nova guia
-                           window.open(conteudo, '_blank');
-                         };
-                         
-                         return (
-                           <div className="message-document">
-                             <div className="document-container" onClick={handleDocumentClick} style={{cursor: 'pointer'}}>
-                               <div className="document-icon">
-                                 <FontAwesomeIcon 
-                                   icon={getDocumentIcon()} 
-                                   className={getDocumentClass()}
-                                 />
-                               </div>
-                               <div className="document-info">
-                                 <div className="document-name">{document_name || 'Documento'}</div>
-                                 <div className="document-type">
-                                   {getDocumentType()} • {mensagem.file_size ? `${Math.round(mensagem.file_size / 1024)} KB` : ''}
-                                 </div>
-                               </div>
-                               <div className="document-action-icon">
-                                 <FontAwesomeIcon icon={fileType.includes('pdf') || fileName.toLowerCase().endsWith('.pdf') ? faFile : faDownload} />
-                               </div>
-                             </div>
-                           </div>
-                         );
-                       }
-                       
-                       // Fallback para tipos desconhecidos
-                       return (
-                         <div className="message-unknown">
-                           <span>Tipo de mensagem não suportado: {type}</span>
-                         </div>
-                       );
-                     };
+                  {mensagens[atendimentoSelecionado.id]?.map(mensagem => {
+                    const getRoleDisplayName = (role) => {
+                      switch (role) {
+                        case 'cliente': return 'CLIENTE';
+                        case 'agente': return 'AGENTE IA';
+                        case 'operador': return 'OPERADOR';
+                        default: return role?.toUpperCase() || 'CLIENTE';
+                      }
+                    };
 
-                     return (
-                        <div key={mensagem.id} className={`message ${mensagem.role}`}>
-                          <div className="message-content">
-                            <span className={`message-role-label ${mensagem.role}`}>
-                              {getRoleDisplayName(mensagem.role)}
-                            </span>
-                            <div className="message-text">
-                              {renderMessageContent(mensagem)}
+                    // Função para renderizar conteúdo da mensagem baseado no tipo
+                    const renderMessageContent = (mensagem) => {
+                      const { mensagem: text, type, document_name, conteudo } = mensagem;
+
+                      // Se for uma mensagem de texto (padrão)
+                      if (!type || type === 'text') {
+                        if (!text) return null;
+
+                        // Dividir o texto em linhas
+                        const lines = text.split('\n');
+
+                        return lines.map((line, index) => {
+                          // Processar formatação markdown básica
+                          let processedLine = line
+                            // Negrito **texto**
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            // Itálico *texto*
+                            .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                            // Links [texto](url)
+                            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+                          // Se a linha está vazia, renderizar como quebra de linha
+                          if (line.trim() === '') {
+                            return <br key={index} />;
+                          }
+
+                          // Se a linha começa com -, renderizar como item de lista
+                          if (line.trim().startsWith('- ')) {
+                            const listItem = line.replace(/^\s*-\s*/, '');
+                            const processedItem = listItem
+                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                              .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                              .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+                            return (
+                              <div key={index} className="message-list-item">
+                                <span className="list-bullet">•</span>
+                                <span dangerouslySetInnerHTML={{ __html: processedItem }} />
+                              </div>
+                            );
+                          }
+
+                          // Renderizar linha normal
+                          return (
+                            <div key={index} className="message-line">
+                              <span dangerouslySetInnerHTML={{ __html: processedLine }} />
                             </div>
-                            <span className="message-time">{new Date(mensagem.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          );
+                        });
+                      }
+
+                      // Se for uma imagem
+                      if (type === 'photo') {
+                        return (
+                          <div className="message-image">
+                            <img
+                              src={conteudo}
+                              alt={document_name || 'Imagem'}
+                              className="chat-image"
+                              onClick={() => window.open(conteudo, '_blank')}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <div className="image-error" style={{ display: 'none' }}>
+                              <FontAwesomeIcon icon={faImage} className="photo-icon" />
+                              <span>Erro ao carregar imagem</span>
+                            </div>
+                            {document_name && (
+                              <div className="file-info">
+                                <span className="file-name">{document_name}</span>
+                              </div>
+                            )}
                           </div>
+                        );
+                      }
+
+                      // Se for um documento
+                      if (type === 'document') {
+                        const fileType = mensagem.file_type || '';
+                        const fileName = document_name || '';
+
+                        const getDocumentIcon = () => {
+                          const lowerFileType = fileType.toLowerCase();
+                          const lowerFileName = fileName.toLowerCase();
+
+                          // Verificar primeiro pelo MIME type
+                          if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return faFilePdf;
+                          if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return faFileWord;
+                          if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return faFileExcel;
+                          if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return faFilePowerpoint;
+                          if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return faFileArchive;
+                          if (lowerFileType.includes('video')) return faFileVideo;
+                          if (lowerFileType.includes('audio')) return faFileAudio;
+                          if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return faFileCode;
+
+                          // Fallback para extensão do arquivo
+                          if (lowerFileName.endsWith('.pdf')) return faFilePdf;
+                          if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return faFileWord;
+                          if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return faFileExcel;
+                          if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return faFilePowerpoint;
+                          if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return faFileArchive;
+                          if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return faFileVideo;
+                          if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return faFileAudio;
+                          if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return faFileCode;
+
+                          return faFile;
+                        };
+
+                        const getDocumentClass = () => {
+                          const lowerFileType = fileType.toLowerCase();
+                          const lowerFileName = fileName.toLowerCase();
+
+                          // Verificar primeiro pelo MIME type
+                          if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return 'pdf-icon';
+                          if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return 'word-icon';
+                          if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return 'excel-icon';
+                          if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return 'powerpoint-icon';
+                          if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return 'archive-icon';
+                          if (lowerFileType.includes('video')) return 'video-icon';
+                          if (lowerFileType.includes('audio')) return 'audio-icon';
+                          if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return 'code-icon';
+
+                          // Fallback para extensão do arquivo
+                          if (lowerFileName.endsWith('.pdf')) return 'pdf-icon';
+                          if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return 'word-icon';
+                          if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return 'excel-icon';
+                          if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return 'powerpoint-icon';
+                          if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return 'archive-icon';
+                          if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return 'video-icon';
+                          if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return 'audio-icon';
+                          if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return 'code-icon';
+
+                          return 'file-icon';
+                        };
+
+                        const getDocumentType = () => {
+                          const lowerFileType = fileType.toLowerCase();
+                          const lowerFileName = fileName.toLowerCase();
+
+                          // Verificar primeiro pelo MIME type
+                          if (lowerFileType.includes('pdf') || lowerFileType === 'application/pdf') return 'PDF';
+                          if (lowerFileType.includes('word') || lowerFileType.includes('msword') || lowerFileType.includes('wordprocessingml')) return 'WORD';
+                          if (lowerFileType.includes('excel') || lowerFileType.includes('spreadsheet')) return 'EXCEL';
+                          if (lowerFileType.includes('powerpoint') || lowerFileType.includes('presentation')) return 'POWERPOINT';
+                          if (lowerFileType.includes('zip') || lowerFileType.includes('rar') || lowerFileType.includes('archive')) return 'ARQUIVO';
+                          if (lowerFileType.includes('video')) return 'VÍDEO';
+                          if (lowerFileType.includes('audio')) return 'ÁUDIO';
+                          if (lowerFileType.includes('javascript') || lowerFileType.includes('json') || lowerFileType.includes('xml') || lowerFileType.includes('html')) return 'CÓDIGO';
+
+                          // Fallback para extensão do arquivo
+                          if (lowerFileName.endsWith('.pdf')) return 'PDF';
+                          if (lowerFileName.endsWith('.doc') || lowerFileName.endsWith('.docx')) return 'WORD';
+                          if (lowerFileName.endsWith('.xls') || lowerFileName.endsWith('.xlsx')) return 'EXCEL';
+                          if (lowerFileName.endsWith('.ppt') || lowerFileName.endsWith('.pptx')) return 'POWERPOINT';
+                          if (lowerFileName.endsWith('.zip') || lowerFileName.endsWith('.rar') || lowerFileName.endsWith('.7z')) return 'ARQUIVO';
+                          if (lowerFileName.endsWith('.mp4') || lowerFileName.endsWith('.avi') || lowerFileName.endsWith('.mov')) return 'VÍDEO';
+                          if (lowerFileName.endsWith('.mp3') || lowerFileName.endsWith('.wav') || lowerFileName.endsWith('.flac')) return 'ÁUDIO';
+                          if (lowerFileName.endsWith('.js') || lowerFileName.endsWith('.json') || lowerFileName.endsWith('.xml') || lowerFileName.endsWith('.html')) return 'CÓDIGO';
+
+                          return 'DOCUMENTO';
+                        };
+
+                        const handleDocumentClick = () => {
+                          // Todos os documentos agora abrem em nova guia
+                          window.open(conteudo, '_blank');
+                        };
+
+                        return (
+                          <div className="message-document">
+                            <div className="document-container" onClick={handleDocumentClick} style={{ cursor: 'pointer' }}>
+                              <div className="document-icon">
+                                <FontAwesomeIcon
+                                  icon={getDocumentIcon()}
+                                  className={getDocumentClass()}
+                                />
+                              </div>
+                              <div className="document-info">
+                                <div className="document-name">{document_name || 'Documento'}</div>
+                                <div className="document-type">
+                                  {getDocumentType()} • {mensagem.file_size ? `${Math.round(mensagem.file_size / 1024)} KB` : ''}
+                                </div>
+                              </div>
+                              <div className="document-action-icon">
+                                <FontAwesomeIcon icon={fileType.includes('pdf') || fileName.toLowerCase().endsWith('.pdf') ? faFile : faDownload} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Fallback para tipos desconhecidos
+                      return (
+                        <div className="message-unknown">
+                          <span>Tipo de mensagem não suportado: {type}</span>
                         </div>
                       );
-                   }) || (
-                    <div className="no-messages">
-                      <p>Nenhuma mensagem ainda.</p>
-                    </div>
-                  )}
+                    };
+
+                    return (
+                      <div key={mensagem.id} className={`message ${mensagem.role}`}>
+                        <div className="message-content">
+                          <span className={`message-role-label ${mensagem.role}`}>
+                            {getRoleDisplayName(mensagem.role)}
+                          </span>
+                          <div className="message-text">
+                            {renderMessageContent(mensagem)}
+                          </div>
+                          <span className="message-time">{new Date(mensagem.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </div>
+                    );
+                  }) || (
+                      <div className="no-messages">
+                        <p>Nenhuma mensagem ainda.</p>
+                      </div>
+                    )}
                   <div ref={messagesEndRef} />
                 </div>
 
                 <div className="chat-input-container">
                   <div className="attachment-container">
-                    <button 
+                    <button
                       className="btn-attachment"
                       disabled={!atendimentoHabilitado}
                       title="Anexar arquivo"
@@ -2104,29 +2112,29 @@ const Dashboard = () => {
                     >
                       <FontAwesomeIcon icon={faPaperclip} />
                     </button>
-                    
+
                     {/* Menu de anexos */}
-                     {menuAnexosAberto && (
-                       <div className="attachment-menu">
-                         <div className="attachment-menu-item" onClick={handleAnexarFoto}>
-                           <div className="attachment-icon photo">
-                             <FontAwesomeIcon icon={faImage} />
-                           </div>
-                           <span>Fotos e vídeos</span>
-                         </div>
-                         
-                         <div className="attachment-menu-item" onClick={handleAnexarDocumento}>
-                           <div className="attachment-icon document">
-                             <FontAwesomeIcon icon={faFile} />
-                           </div>
-                           <span>Documento</span>
-                         </div>
-                       </div>
-                     )}
+                    {menuAnexosAberto && (
+                      <div className="attachment-menu">
+                        <div className="attachment-menu-item" onClick={handleAnexarFoto}>
+                          <div className="attachment-icon photo">
+                            <FontAwesomeIcon icon={faImage} />
+                          </div>
+                          <span>Fotos e vídeos</span>
+                        </div>
+
+                        <div className="attachment-menu-item" onClick={handleAnexarDocumento}>
+                          <div className="attachment-icon document">
+                            <FontAwesomeIcon icon={faFile} />
+                          </div>
+                          <span>Documento</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="message-input-wrapper">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="message-input"
                       placeholder="Digite sua mensagem..."
                       value={mensagemInput}
@@ -2135,7 +2143,7 @@ const Dashboard = () => {
                       disabled={!atendimentoHabilitado || enviandoMensagem}
                     />
                   </div>
-                  <button 
+                  <button
                     className="btn-send"
                     onClick={enviarMensagem}
                     disabled={!atendimentoHabilitado || enviandoMensagem || !mensagemInput.trim()}
@@ -2196,15 +2204,15 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="modal-actions">
-              <button 
-                className="btn-secondary" 
+              <button
+                className="btn-secondary"
                 onClick={fecharModalHabilitacao}
                 disabled={verificandoSenha}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 onClick={verificarSenha}
                 disabled={verificandoSenha || senhaDigitada.join('').length !== 6}
               >
@@ -2268,7 +2276,7 @@ const Dashboard = () => {
                       <label>E-MAIL:</label>
                       <div className="info-item-with-edit">
                         <span>{atendimentoSelecionado.email || 'Nenhum e-mail cadastrado'}</span>
-                        <button 
+                        <button
                           className="btn-edit-field"
                           onClick={() => {
                             setNovoEmail(atendimentoSelecionado.email || '');
@@ -2295,7 +2303,7 @@ const Dashboard = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="info-section">
                 <h4>Detalhes do Atendimento</h4>
                 <div className="info-container-split">
@@ -2307,8 +2315,8 @@ const Dashboard = () => {
                     <div className="info-item">
                       <label>OPERADOR RESPONSÁVEL:</label>
                       <span>
-                        {atendimentoSelecionado.operador_id 
-                          ? (operadoresNomes[atendimentoSelecionado.operador_id] || 'Carregando...') 
+                        {atendimentoSelecionado.operador_id
+                          ? (operadoresNomes[atendimentoSelecionado.operador_id] || 'Carregando...')
                           : 'Sem operador atribuído'
                         }
                       </span>
@@ -2322,7 +2330,7 @@ const Dashboard = () => {
                     <div className="info-item">
                       <label>CATEGORIA:</label>
                       <span>
-                        {atendimentoSelecionado.categoria_id 
+                        {atendimentoSelecionado.categoria_id
                           ? (categoriasNomes[atendimentoSelecionado.categoria_id] || 'Carregando...')
                           : 'Categoria não definida'
                         }
@@ -2339,56 +2347,56 @@ const Dashboard = () => {
                 </div>
               </div>
 
-               <div className="info-section">
-                 <h4>Observações</h4>
-                 <div className="observacoes-container">
-                   <div className="nova-observacao">
-                     <textarea
-                       className="observacoes-textarea"
-                       placeholder="Digite uma nova observação..."
-                       value={novaObservacao}
-                       onChange={(e) => setNovaObservacao(e.target.value)}
-                       onKeyPress={handleKeyPressObservacao}
-                       rows={3}
-                     />
-                     <button 
-                       className="btn-adicionar-observacao"
-                       onClick={adicionarObservacao}
-                       disabled={!novaObservacao.trim()}
-                     >
-                       Adicionar
-                     </button>
-                   </div>
-                   
-                   <div className="observacoes-lista">
-                     {carregandoObservacoes ? (
-                       <div className="observacoes-loading">
-                         <p>Carregando observações...</p>
-                       </div>
-                     ) : observacoes.length > 0 ? (
-                       observacoes.map((obs, index) => (
-                         <div key={obs.id || index} className="observacao-item">
-                           <div className="observacao-content">
-                             <p className="observacao-texto">{obs.observacao}</p>
-                           </div>
-                           <div className="observacao-meta">
-                             <span className="observacao-operador">
-                               {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
-                             </span>
-                             <span className="observacao-data">
-                               {formatarDataHora(new Date(obs.created_time))}
-                             </span>
-                           </div>
-                         </div>
-                       ))
-                     ) : (
-                       <div className="observacoes-vazio">
-                         <p>Nenhuma observação registrada para este atendimento.</p>
-                       </div>
-                     )}
-                   </div>
-                 </div>
-               </div>
+              <div className="info-section">
+                <h4>Observações</h4>
+                <div className="observacoes-container">
+                  <div className="nova-observacao">
+                    <textarea
+                      className="observacoes-textarea"
+                      placeholder="Digite uma nova observação..."
+                      value={novaObservacao}
+                      onChange={(e) => setNovaObservacao(e.target.value)}
+                      onKeyPress={handleKeyPressObservacao}
+                      rows={3}
+                    />
+                    <button
+                      className="btn-adicionar-observacao"
+                      onClick={adicionarObservacao}
+                      disabled={!novaObservacao.trim()}
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+
+                  <div className="observacoes-lista">
+                    {carregandoObservacoes ? (
+                      <div className="observacoes-loading">
+                        <p>Carregando observações...</p>
+                      </div>
+                    ) : observacoes.length > 0 ? (
+                      observacoes.map((obs, index) => (
+                        <div key={obs.id || index} className="observacao-item">
+                          <div className="observacao-content">
+                            <p className="observacao-texto">{obs.observacao}</p>
+                          </div>
+                          <div className="observacao-meta">
+                            <span className="observacao-operador">
+                              {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
+                            </span>
+                            <span className="observacao-data">
+                              {formatarDataHora(new Date(obs.created_time))}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="observacoes-vazio">
+                        <p>Nenhuma observação registrada para este atendimento.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="modal-actions">
               <button className="btn-secondary" onClick={fecharModalInformacoes}>
@@ -2452,14 +2460,14 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn-secondary" 
+              <button
+                className="btn-secondary"
                 onClick={cancelarEdicaoEmail}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn-primary" 
+              <button
+                className="btn-primary"
                 onClick={salvarNovoEmail}
                 disabled={!novoEmail.trim()}
               >
@@ -2483,13 +2491,13 @@ const Dashboard = () => {
                 </strong>
               </div>
             </div>
-            
+
             <div className="modal-body-aguardando">
               <div className="atendimento-info-aguardando">
                 <div className="cliente-avatar-aguardando">
                   {atendimentoAguardando.avatar || atendimentoAguardando.cliente_nome?.substring(0, 2).toUpperCase()}
                 </div>
-                
+
                 <div className="cliente-dados-aguardando">
                   <h3>{atendimentoAguardando.cliente_nome}</h3>
                   <p><strong>Código:</strong> {atendimentoAguardando.codigo}</p>
@@ -2497,22 +2505,22 @@ const Dashboard = () => {
                   <p className="status-badge">Aguardando Atendimento</p>
                 </div>
               </div>
-              
+
               <div className="ultima-mensagem-aguardando">
                 <h4>Descrição do Atendimento:</h4>
                 <p>{atendimentoAguardando.descricao_atendimento || 'Sem descrição'}</p>
                 <span className="horario">{new Date(atendimentoAguardando.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
-            
+
             <div className="modal-footer-aguardando">
-              <button 
+              <button
                 className="btn-rejeitar-aguardando"
                 onClick={handleRejeitarAtendimentoAguardando}
               >
                 Rejeitar Atendimento
               </button>
-              <button 
+              <button
                 className="btn-aceitar-aguardando"
                 onClick={handleAceitarAtendimentoAguardando}
               >
@@ -2539,7 +2547,7 @@ const Dashboard = () => {
                     <p><strong>Cliente:</strong> {atendimentoParaFinalizar.nome}</p>
                     <p><strong>Código:</strong> #{atendimentoParaFinalizar.codigo}</p>
                     <p><strong>Telefone:</strong> {atendimentoParaFinalizar.telefone}</p>
-                    <p><strong>Status Atual:</strong> 
+                    <p><strong>Status Atual:</strong>
                       <span className={`status-badge status-${atendimentoParaFinalizar.status}`}>
                         {atendimentoParaFinalizar.status}
                       </span>
@@ -2553,15 +2561,15 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="modal-actions">
-              <button 
-                className="btn-secondary" 
+              <button
+                className="btn-secondary"
                 onClick={fecharModalFinalizarAtendimento}
                 disabled={finalizandoAtendimento}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn-finalizar-confirmar" 
+              <button
+                className="btn-finalizar-confirmar"
                 onClick={confirmarFinalizarAtendimento}
                 disabled={finalizandoAtendimento}
               >

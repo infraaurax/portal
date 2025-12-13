@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { buscarPorEmail, atualizar } from '../services/operadoresService';
+import { buscarPorEmail, buscarPorId, atualizar } from '../services/operadoresService';
 import { supabase } from '../lib/supabase';
 import packageJson from '../../package.json';
 import './Layout.css';
@@ -28,7 +28,7 @@ const Layout = () => {
   const [profileError, setProfileError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [notifications, setNotifications] = useState([]);
-  
+
   // Log para verificar dados do usuário no Layout
   console.log('🖥️ [Layout] Dados do usuário recebidos:', user);
   console.log('🖥️ [Layout] Estado de autenticação:', { atendimentoHabilitado, atendimentoPausado });
@@ -36,11 +36,16 @@ const Layout = () => {
   // Carregar dados completos do operador
   useEffect(() => {
     const carregarDadosOperador = async () => {
-      if (user?.email) {
+      if (user?.id || user?.email) {
         try {
-          const operador = await buscarPorEmail(user.email);
+          let operador = null;
+          if (user?.id) {
+            operador = await buscarPorId(user.id);
+          }
+          if (!operador && user?.email) {
+            operador = await buscarPorEmail(user.email);
+          }
           setOperadorData(operador);
-          // Preencher formulário de perfil
           if (operador) {
             setProfileForm({
               nome: operador.nome || '',
@@ -53,28 +58,31 @@ const Layout = () => {
         }
       }
     };
-
     carregarDadosOperador();
-  }, [user?.email]);
+  }, [user?.id, user?.email]);
 
   const allMenuItems = [
-    { path: '/dashboard', label: 'Atendimentos', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>, allowedProfiles: ['Admin', 'Operador'] },
-    { path: '/atendimentos-nao-finalizados', label: 'Atendimentos não Finalizados', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>, allowedProfiles: ['Admin', 'Operador'] },
-    { path: '/perguntas-nao-respondidas', label: 'Perguntas não Respondidas', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="m9,9a3,3 0 1,1 6,0c0,2 -3,3 -3,3"/><path d="m12,17 l.01,0"/></svg>, allowedProfiles: ['Admin'] },
-    { path: '/usuarios', label: 'Usuários', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m22 21v-2a4 4 0 0 0-3-3.87"/><path d="m16 3.13a4 4 0 0 1 0 7.75"/></svg>, allowedProfiles: ['Admin'] },
-    { path: '/monitoramento-operadores', label: 'Monitoramento', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/><circle cx="12" cy="12" r="10"/></svg>, allowedProfiles: ['Admin'] },
-    { path: '/categorias', label: 'Categorias', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>, allowedProfiles: ['Admin'] },
+    { path: '/dashboard', label: 'Atendimentos', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>, allowedProfiles: ['Admin', 'Operador'] },
+    { path: '/atendimentos-nao-finalizados', label: 'Atendimentos não Finalizados', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12,6 12,12 16,14" /></svg>, allowedProfiles: ['Admin', 'Operador'] },
+    { path: '/perguntas-nao-respondidas', label: 'Perguntas não Respondidas', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="m9,9a3,3 0 1,1 6,0c0,2 -3,3 -3,3" /><path d="m12,17 l.01,0" /></svg>, allowedProfiles: ['Admin'] },
+    { path: '/usuarios', label: 'Usuários', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m22 21v-2a4 4 0 0 0-3-3.87" /><path d="m16 3.13a4 4 0 0 1 0 7.75" /></svg>, allowedProfiles: ['Admin'] },
+    { path: '/monitoramento-operadores', label: 'Monitoramento', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1" /><circle cx="12" cy="12" r="10" /></svg>, allowedProfiles: ['Admin'] },
+    { path: '/categorias', label: 'Categorias', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>, allowedProfiles: ['Admin'] },
   ];
 
   // Filtrar itens do menu baseado no perfil do usuário
   const userProfile = operadorData?.perfil || user?.perfil || 'Operador';
-  const menuItems = allMenuItems.filter(item => 
+  const menuItems = allMenuItems.filter(item =>
     item.allowedProfiles.includes(userProfile)
   );
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      setShowUserModal(false);
+      await logout();
+    } finally {
+      navigate('/', { replace: true });
+    }
   };
 
   const handleAvatarClick = () => {
@@ -214,7 +222,7 @@ const Layout = () => {
         read: true
       }
     ];
-    
+
     // Só adicionar notificações se for operador e tiver atendimentos habilitados
     if (operadorData?.perfil === 'Operador' && atendimentoHabilitado) {
       setNotifications(mockNotifications);
@@ -229,7 +237,7 @@ const Layout = () => {
 
   // Dados do usuário vindos do Supabase
   const userData = {
-    name: operadorData?.nome || user?.nome || 'Usuário',
+    name: operadorData?.nome || user?.nome || (user?.email ? user.email.split('@')[0] : 'Usuário'),
     profile: user?.perfil || 'Operador',
     email: user?.email || 'usuario@exemplo.com',
     accountStatus: user?.perfil === 'Admin' ? null : 'Habilitado'
@@ -240,32 +248,33 @@ const Layout = () => {
       <header className="top-header">
         <div className="header-left">
           <img src="/aurax-logo.svg" alt="Logo Aurax" className="header-logo" />
-          
+
         </div>
-        
+
         <div className="header-center">
           <nav className="top-nav">
             {menuItems.map((item) => (
-              <button
+              <NavLink
                 key={item.path}
-                className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-                onClick={() => navigate(item.path)}
+                to={item.path}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                replace
               >
                 <span className="nav-icon">{item.icon}</span>
                 <span className="nav-label">{item.label}</span>
-              </button>
+              </NavLink>
             ))}
           </nav>
         </div>
-        
+
         <div className="header-right">
           <div className="user-section">
             {/* Ícone de notificações - só aparece para operadores */}
             {operadorData?.perfil === 'Operador' && (
               <div className="notifications-icon" onClick={handleNotificationsClick} title="Notificações">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                 </svg>
                 {notifications.filter(n => !n.read).length > 0 && (
                   <span className="notification-badge">
@@ -280,7 +289,7 @@ const Layout = () => {
           </div>
         </div>
       </header>
-      
+
       <main className="main-content">
         <Outlet />
       </main>
@@ -295,78 +304,71 @@ const Layout = () => {
                 ×
               </button>
             </div>
-            
+
             <div className="modal-body">
               <div className="user-avatar-large">
                 {getInitials(userData.name)}
               </div>
-              
+
               <div className="user-details-modal">
                 <div className="detail-item">
                   <label>Nome:</label>
                   <span>{operadorData?.nome || userData.name}</span>
                 </div>
-                
+
                 <div className="detail-item">
                   <label>E-mail:</label>
                   <span>{operadorData?.email || userData.email}</span>
                 </div>
-                
+
                 <div className="detail-item">
                   <label>CPF:</label>
                   <span>{operadorData?.cpf || '-'}</span>
                 </div>
-                
+
                 <div className="detail-item">
                   <label>Perfil:</label>
                   <span>{operadorData?.perfil || userData.profile}</span>
                 </div>
-                
+
                 <div className="detail-item">
                   <label>Status:</label>
-                  <span className={`status-badge ${
-                    operadorData?.habilitado ? 'status-active' : 'status-inactive'
-                  }`}>
+                  <span className={`status-badge ${operadorData?.habilitado ? 'status-active' : 'status-inactive'
+                    }`}>
                     {operadorData?.habilitado ? 'Ativo' : 'Inativo'}
                   </span>
                 </div>
-                
+
                 {userData.accountStatus && (
                   <div className="detail-item">
                     <label>Atendimento:</label>
-                    <span className={`status-badge ${
-                      atendimentoPausado ? 'status-paused' : 
-                      atendimentoHabilitado ? 'status-active' : 'status-inactive'
-                    }`}>
-                      {atendimentoPausado ? 'Pausado' : 
-                       atendimentoHabilitado ? 'Habilitado' : 'Não Habilitado'}
+                    <span className={`status-badge ${atendimentoPausado ? 'status-paused' :
+                        atendimentoHabilitado ? 'status-active' : 'status-inactive'
+                      }`}>
+                      {atendimentoPausado ? 'Pausado' :
+                        atendimentoHabilitado ? 'Habilitado' : 'Não Habilitado'}
                     </span>
                   </div>
                 )}
               </div>
             </div>
-            
+
             <div className="modal-actions">
               <button className="btn-profile" onClick={handleProfileClick}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
                 Editar Perfil
               </button>
-              
-              <button className="btn-test" onClick={handleTestClick}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-4m-4-4v4m0 0l3-3m-3 3L9 8"/>
-                </svg>
-                Testes do Sistema
-              </button>
-              
+
+
+
               <button className="btn-logout" onClick={handleLogout}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16,17 21,12 16,7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16,17 21,12 16,7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
                 Sair
               </button>
@@ -385,12 +387,12 @@ const Layout = () => {
                 ×
               </button>
             </div>
-            
+
             <form onSubmit={handleProfileSubmit} className="modal-body">
               {profileError && (
                 <div className="error-message">{profileError}</div>
               )}
-              
+
               <div className="form-group">
                 <label htmlFor="nome">Nome:</label>
                 <input
@@ -402,7 +404,7 @@ const Layout = () => {
                   required
                 />
               </div>
-              
+
               <div className="form-group">
                 <label htmlFor="email">E-mail:</label>
                 <input
@@ -414,7 +416,7 @@ const Layout = () => {
                   required
                 />
               </div>
-              
+
               <div className="form-group">
                 <label htmlFor="cpf">CPF:</label>
                 <input
@@ -425,18 +427,18 @@ const Layout = () => {
                   onChange={handleProfileFormChange}
                 />
               </div>
-              
+
               <div className="modal-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
+                <button
+                  type="button"
+                  className="btn-secondary"
                   onClick={handleChangePasswordClick}
                 >
                   Alterar Senha
                 </button>
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
+                <button
+                  type="submit"
+                  className="btn-primary"
                   disabled={profileLoading}
                 >
                   {profileLoading ? 'Salvando...' : 'Salvar'}
@@ -457,12 +459,12 @@ const Layout = () => {
                 ×
               </button>
             </div>
-            
+
             <form onSubmit={handlePasswordSubmit} className="modal-body">
               {passwordError && (
                 <div className="error-message">{passwordError}</div>
               )}
-              
+
               <div className="form-group">
                 <label htmlFor="newPassword">Nova Senha:</label>
                 <div className="password-input-container">
@@ -482,19 +484,19 @@ const Layout = () => {
                   >
                     {showNewPassword ? (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
                       </svg>
                     ) : (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
                       </svg>
                     )}
                   </button>
                 </div>
               </div>
-              
+
               <div className="form-group">
                 <label htmlFor="confirmPassword">Confirmar Nova Senha:</label>
                 <div className="password-input-container">
@@ -514,30 +516,30 @@ const Layout = () => {
                   >
                     {showConfirmPassword ? (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
                       </svg>
                     ) : (
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
                       </svg>
                     )}
                   </button>
                 </div>
               </div>
-              
+
               <div className="modal-actions">
-                <button 
-                  type="button" 
-                  className="btn-secondary" 
+                <button
+                  type="button"
+                  className="btn-secondary"
                   onClick={handleClosePasswordModal}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
+                <button
+                  type="submit"
+                  className="btn-primary"
                   disabled={passwordLoading}
                 >
                   {passwordLoading ? 'Alterando...' : 'Alterar Senha'}
@@ -558,7 +560,7 @@ const Layout = () => {
                 ×
               </button>
             </div>
-            
+
             <div className="modal-body">
               <p>Componente de testes removido.</p>
             </div>
@@ -574,15 +576,15 @@ const Layout = () => {
               <h3>Notificações</h3>
               <div className="modal-header-actions">
                 {notifications.length > 0 && (
-                  <button 
-                    className="clear-notifications-btn" 
+                  <button
+                    className="clear-notifications-btn"
                     onClick={() => setNotifications([])}
                     title="Limpar todas as notificações"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18"/>
-                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
                     </svg>
                     Limpar
                   </button>
@@ -592,13 +594,13 @@ const Layout = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="modal-body">
               {notifications.length === 0 ? (
                 <div className="no-notifications">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                   </svg>
                   <p>Nenhuma notificação no momento</p>
                 </div>
@@ -609,12 +611,12 @@ const Layout = () => {
                       <div className="notification-icon">
                         {notification.type === 'assignment' ? (
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
                           </svg>
                         ) : (
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1" />
                           </svg>
                         )}
                       </div>
@@ -623,7 +625,7 @@ const Layout = () => {
                         <p>{notification.message}</p>
                         <span className="notification-time">{notification.time}</span>
                       </div>
-                      <button 
+                      <button
                         className="remove-notification-btn"
                         onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
                         title="Remover esta notificação"
@@ -641,8 +643,8 @@ const Layout = () => {
       )}
 
       <div className="version-info">
-            <span className="version-label">v{packageJson.version}</span>
-          </div>
+        <span className="version-label">v{packageJson.version}</span>
+      </div>
     </div>
   );
 };

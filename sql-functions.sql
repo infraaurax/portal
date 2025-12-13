@@ -147,6 +147,7 @@ RETURNS TABLE (
   updated_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
@@ -186,6 +187,7 @@ RETURNS TABLE (
   updated_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
@@ -225,6 +227,7 @@ RETURNS TABLE (
   updated_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
@@ -265,6 +268,7 @@ RETURNS TABLE (
   updated_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
@@ -281,7 +285,7 @@ BEGIN
     o.created_at,
     o.updated_at
   FROM operadores o
-  WHERE o.email = p_email
+  WHERE LOWER(TRIM(o.email)) = LOWER(TRIM(p_email))
   ORDER BY o.updated_at DESC
   LIMIT 1;
 END;
@@ -306,6 +310,7 @@ RETURNS TABLE (
   updated_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
@@ -395,6 +400,14 @@ ALTER TABLE public.operadores ADD COLUMN IF NOT EXISTS habilitado BOOLEAN DEFAUL
 ALTER TABLE public.operadores ADD COLUMN IF NOT EXISTS online BOOLEAN DEFAULT false;
 ALTER TABLE public.operadores ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.operadores ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Garantir integridade referencial correta para operador_id
+ALTER TABLE public.atendimentos DROP CONSTRAINT IF EXISTS atendimentos_operador_id_fkey;
+ALTER TABLE public.atendimentos
+  ADD CONSTRAINT atendimentos_operador_id_fkey
+  FOREIGN KEY (operador_id)
+  REFERENCES public.operadores(id)
+  ON DELETE SET NULL;
 
 DROP FUNCTION IF EXISTS distribuir_atendimento_simples(UUID);
 
