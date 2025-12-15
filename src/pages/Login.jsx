@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { buscarPorEmail } from '../services/operadoresService';
  
 import packageJson from '../../package.json';
 import './Login.css';
@@ -19,10 +20,12 @@ const Login = () => {
   const [modalError, setModalError] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  const [blockedMessage, setBlockedMessage] = useState('');
   
   
   
-  const { loginMagic, verifyMagic, isAuthenticated, session } = useAuth();
+  const { loginMagic, verifyMagic, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   
@@ -36,7 +39,13 @@ const Login = () => {
         setError(`Por segurança, aguarde ${cooldown}s antes de solicitar novamente.`);
         return;
       }
-      setLoginStep('Enviando código...');
+      const operador = await buscarPorEmail(email);
+      if (operador && operador.status && operador.status.toLowerCase() === 'inativo') {
+        setBlockedMessage('Sua conta está inativa, consulte o Administrador do sistema');
+        setShowBlockedModal(true);
+        setIsLoading(false);
+        return;
+      }
       const result = await loginMagic(email);
       if (!result.success) {
         setError(result.error || 'Falha ao enviar código');
@@ -85,7 +94,19 @@ const Login = () => {
       
       const result = await verifyMagic(forgotPasswordEmail, fullCode);
       if (!result.success) {
-        setModalError(result.error || 'Código de verificação inválido.');
+        const message = result.error || 'Código de verificação inválido.';
+        if (message.toLowerCase().includes('inativo') || message.toLowerCase().includes('inativa')) {
+          setBlockedMessage(message);
+          setShowBlockedModal(true);
+          setShowPasswordModal(false);
+          setVerificationCode(['', '', '', '', '', '']);
+          setError('');
+        } else {
+          setModalError(message);
+          setError(message);
+          setShowPasswordModal(false);
+          setVerificationCode(['', '', '', '', '', '']);
+        }
         return;
       }
       setShowPasswordModal(false);
@@ -99,10 +120,10 @@ const Login = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated || session) {
+    if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
-  }, [isAuthenticated, session, navigate]);
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -118,6 +139,10 @@ const Login = () => {
     setForgotPasswordEmail('');
     setVerificationCode(['', '', '', '', '', '']);
     setModalError('');
+  };
+  const closeBlockedModal = () => {
+    setShowBlockedModal(false);
+    setBlockedMessage('');
   };
 
   return (
@@ -263,6 +288,22 @@ const Login = () => {
             )}
             
             
+          </div>
+        </div>
+      )}
+      {showBlockedModal && (
+        <div className="modal-overlay" onClick={closeBlockedModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Acesso bloqueado</h2>
+              <button className="modal-close" onClick={closeBlockedModal}>&times;</button>
+            </div>
+            <div className="modal-form">
+              <div className="error-message">{blockedMessage || 'Sua conta está inativa, consulte o Administrador do sistema'}</div>
+              <div className="modal-buttons">
+                <button className="btn-primary" onClick={closeBlockedModal}>Entendi</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -41,7 +41,35 @@ const buscarNomesRelacionados = async (atendimentos) => {
   // Buscar última mensagem para cada atendimento
   const atendimentosComMensagens = await Promise.all(
     atendimentos.map(async (atendimento) => {
-      const ultimaMensagem = await atendimentosService.buscarUltimaMensagem(atendimento.id);
+      // Tentar pegar a última mensagem via referência direta do atendimento, se existir
+      let ultimaMensagem = null;
+      const ultimaMensagemId = atendimento.ultima_mensagem_id || atendimento.last_message_id || atendimento.mensagem_id || null;
+      if (ultimaMensagemId) {
+        const mensagemDireta = await atendimentosService.buscarMensagemPorId(ultimaMensagemId);
+        ultimaMensagem = mensagemDireta || null;
+      }
+      // Fallback: buscar a última mensagem pelo atendimento_id
+      if (!ultimaMensagem) {
+        ultimaMensagem = await atendimentosService.buscarUltimaMensagem(atendimento.id);
+      }
+
+      // Determinar timestamp base para cálculo de tempo sem resposta
+      const baseDate = (ultimaMensagem && ultimaMensagem.created_at) ? new Date(ultimaMensagem.created_at) : new Date(atendimento.created_at);
+      const agora = new Date();
+      const diffMs = Math.max(0, agora.getTime() - baseDate.getTime());
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHoras = Math.floor(diffMin / 60);
+      const diffDias = Math.floor(diffHoras / 24);
+      let tempoSemResposta = '';
+      if (diffDias > 0) {
+        tempoSemResposta = diffDias === 1 ? '1 dia' : `${diffDias} dias`;
+      } else if (diffHoras > 0) {
+        const minutosRestantes = diffMin % 60;
+        tempoSemResposta = minutosRestantes > 0 ? `${diffHoras} h ${minutosRestantes} min` : `${diffHoras} h`;
+      } else {
+        tempoSemResposta = diffMin <= 1 ? '1 min' : `${diffMin} min`;
+      }
+      const horarioUltimaMensagem = baseDate.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
       
       return {
         ...atendimento,
@@ -52,9 +80,14 @@ const buscarNomesRelacionados = async (atendimentos) => {
         descricao: atendimento.descricao_atendimento,
         horario: atendimento.created_at,
         // Última mensagem
-        ultima_mensagem: ultimaMensagem ? ultimaMensagem.conteudo : 'Nenhuma mensagem encontrada',
+        ultima_mensagem: ultimaMensagem ? (ultimaMensagem.conteudo || ultimaMensagem.texto || '') : 'Nenhuma mensagem encontrada',
+        // Campos esperados por AtendimentosNaoFinalizados
+        ultimaMensagem: ultimaMensagem ? (ultimaMensagem.conteudo || ultimaMensagem.texto || '') : '',
+        horarioUltimaMensagem,
+        tempoSemResposta,
         // Campos relacionados
         operador: atendimento.operador_id ? { nome: operadoresMap[atendimento.operador_id] || 'Operador não encontrado' } : null,
+        operadorResponsavel: atendimento.operador_id ? (operadoresMap[atendimento.operador_id] || null) : null,
         categoria: atendimento.categoria_id ? { nome: categoriasMap[atendimento.categoria_id] || 'Categoria não encontrada' } : null,
         // Avatar baseado na primeira letra do nome
         avatar: atendimento.cliente_nome ? atendimento.cliente_nome.charAt(0).toUpperCase() : '?'
@@ -628,7 +661,7 @@ const atendimentosService = {
     try {
       const { data, error } = await supabase
         .from('mensagens')
-        .select('conteudo, created_at')
+        .select('id, conteudo, created_at')
         .eq('atendimento_id', atendimentoId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -645,6 +678,26 @@ const atendimentosService = {
       return data;
     } catch (error) {
       console.error('Erro ao buscar última mensagem:', error);
+      return null;
+    }
+  },
+  // Buscar mensagem diretamente por ID, caso o atendimento possua referência
+  async buscarMensagemPorId(mensagemId) {
+    try {
+      const { data, error } = await supabase
+        .from('mensagens')
+        .select('id, conteudo, created_at')
+        .eq('id', mensagemId)
+        .single();
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar mensagem por ID:', error);
       return null;
     }
   }

@@ -6,9 +6,10 @@ import { useState, useEffect } from 'react';
 
 const RoleProtectedRoute = ({ children, allowedProfiles = [] }) => {
   const { user, isAuthenticated, loading, session } = useAuth();
+  const isInactive = user?.status && user.status.toLowerCase() === 'inativo';
 
-  // Aguardar até loading finalizar OU ter user disponível
-  if (loading || (!user && session)) {
+  // Aguardar até loading finalizar
+  if (loading) {
     return (
       <div style={{
         display: 'flex',
@@ -22,7 +23,12 @@ const RoleProtectedRoute = ({ children, allowedProfiles = [] }) => {
     );
   }
 
-  if (!isAuthenticated && !session) {
+  // Exige isAuthenticated; não permitir apenas com session
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (isInactive) {
     return <Navigate to="/" replace />;
   }
 

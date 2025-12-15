@@ -186,6 +186,7 @@
   padding: 20px;
   transition: all 0.3s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  max-width: 27rem;
 }
 
 .atendimento-card:hover {
@@ -261,9 +262,9 @@
   border: 1px solid #ffeaa7;
 }
 
-.atendimento-detalhes {
+/* .atendimento-detalhes {
   space-y: 12px;
-}
+} */
 
 .tempo-espera {
   display: flex;

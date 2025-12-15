@@ -132,7 +132,7 @@ export const AuthProvider = ({ children }) => {
               setTimeout(() => {
                 console.log('⏰ [onAuthStateChange] Timeout da busca! Usando fallback...')
                 resolve(null)
-              }, 2000)
+              }, 500)
             })
 
             // Race entre busca e timeout
@@ -142,6 +142,17 @@ export const AuthProvider = ({ children }) => {
             ])
 
             console.log('📊 [onAuthStateChange] Resultado da busca:', operador)
+
+            // Bloquear imediatamente se operador estiver inativo
+            if (operador && operador.status && operador.status.toLowerCase() === 'inativo') {
+              console.warn('⛔ [onAuthStateChange] Operador inativo detectado. Forçando signOut.')
+              await supabase.auth.signOut()
+              setUser(null)
+              setIsAuthenticated(false)
+              localStorage.removeItem('operador_email')
+              setLoading(false)
+              return
+            }
 
             // Se não encontrou OU timeout, tentar com email do localStorage
             if (!operador && emailLocalStorage) {
@@ -161,32 +172,40 @@ export const AuthProvider = ({ children }) => {
               }
             }
 
-            // Se ainda não encontrou, criar user básico com email do localStorage
-            const userFromOperador = operador ? {
-              id: operador.id,
-              email: operador.email,
-              nome: operador.nome || emailParaBusca,
-              perfil: operador.perfil || 'Operador',
-              status: operador.status || 'Ativo',
-              habilitado: !!operador.habilitado
-            } : {
-              id: session.user.id,
-              email: emailLocalStorage || emailParaBusca,
-              nome: emailLocalStorage || emailParaBusca,
-              perfil: 'Operador',
-              status: 'Ativo',
-              habilitado: true
+            // Bloquear também se encontrou via localStorage e for inativo
+            if (operador && operador.status && operador.status.toLowerCase() === 'inativo') {
+              console.warn('⛔ [onAuthStateChange] Operador inativo detectado (via localStorage). Forçando signOut.')
+              await supabase.auth.signOut()
+              setUser(null)
+              setIsAuthenticated(false)
+              localStorage.removeItem('operador_email')
+              setLoading(false)
+              return
             }
 
-            // Salvar email no localStorage
             if (operador) {
+              const novoUser = {
+                id: operador.id,
+                email: operador.email,
+                nome: operador.nome || emailParaBusca,
+                perfil: operador.perfil || user?.perfil || 'Operador',
+                status: operador.status || user?.status || 'Ativo',
+                habilitado: !!operador.habilitado
+              }
               localStorage.setItem('operador_email', operador.email)
-              console.log('💾 [onAuthStateChange] Email salvo no localStorage')
+              setUser(novoUser)
+            } else {
+              setUser(prev => prev ? prev : {
+                id: session.user.id,
+                email: emailLocalStorage || emailParaBusca,
+                nome: emailLocalStorage || emailParaBusca,
+                perfil: user?.perfil || 'Operador',
+                status: user?.status || 'Ativo',
+                habilitado: user?.habilitado ?? true
+              })
             }
-
-            setUser(userFromOperador)
             setIsAuthenticated(true)
-            console.log('✅ [onAuthStateChange] User configurado:', userFromOperador.email)
+            console.log('✅ [onAuthStateChange] User configurado:', operador ? operador.email : (user?.email || emailParaBusca))
           } catch (e) {
             console.error('❌ [onAuthStateChange] Erro:', e)
             const emailLocalStorage = localStorage.getItem('operador_email')
@@ -257,7 +276,7 @@ export const AuthProvider = ({ children }) => {
           console.error('❌ [AuthContext] Passo 2 - Falha: Operador com status inativo')
           // Fazer logout do Supabase Auth já que o usuário não deveria estar autenticado
           await supabase.auth.signOut()
-          throw new Error('Usuário inativo. Entre em contato com o administrador.')
+          throw new Error('Sua conta está inativa, consulte o Administrador do sistema')
         }
 
         // Armazenar dados completos do operador para uso posterior
@@ -303,6 +322,16 @@ export const AuthProvider = ({ children }) => {
   const loginMagic = async (email) => {
     try {
       setLoading(true)
+      // Pré-checagem: bloquear envio de OTP para contas com status 'inativo'
+      try {
+        const operador = await buscarPorEmail(email)
+        if (operador && operador.status && operador.status.toLowerCase() === 'inativo') {
+          return { success: false, error: 'Sua conta está inativa, consulte o Administrador do sistema' }
+        }
+      } catch (e) {
+        // Em caso de erro ao buscar, não bloquear; seguir com envio de OTP
+        console.warn('[AuthContext] Falha ao verificar status antes do OTP, prosseguindo:', e?.message)
+      }
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -332,6 +361,14 @@ export const AuthProvider = ({ children }) => {
       if (data?.session) {
         setSession(data.session)
         const operador = await buscarPorEmail(email)
+        if (operador && operador.status && operador.status.toLowerCase() === 'inativo') {
+          await supabase.auth.signOut()
+          setUser(null)
+          setSession(null)
+          setIsAuthenticated(false)
+          localStorage.removeItem('operador_email')
+          return { success: false, error: 'Sua conta está inativa, consulte o Administrador do sistema' }
+        }
         if (operador) {
           setUser({
             id: operador.id,
@@ -535,6 +572,40 @@ export const AuthProvider = ({ children }) => {
     logout,
     changePassword
   }
+
+  useEffect(() => {
+    if (!user?.email) return
+    const channel = supabase
+      .channel('operadores-status-' + user.email)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'operadores',
+        filter: `email=eq.${user.email}`
+      }, async (payload) => {
+        const novo = payload.new
+        if (!novo) return
+        if (novo.status && novo.status.toLowerCase() === 'inativo') {
+          await supabase.auth.signOut()
+          setUser(null)
+          setIsAuthenticated(false)
+          localStorage.removeItem('operador_email')
+          return
+        }
+        setUser(prev => ({
+          ...(prev || {}),
+          email: novo.email || prev?.email || user.email,
+          nome: novo.nome || prev?.nome || user.nome,
+          perfil: novo.perfil || prev?.perfil || user.perfil,
+          status: novo.status || prev?.status || user.status,
+          habilitado: typeof novo.habilitado === 'boolean' ? novo.habilitado : (prev?.habilitado ?? user.habilitado)
+        }))
+      })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.email])
 
   return (
     <AuthContext.Provider value={value}>

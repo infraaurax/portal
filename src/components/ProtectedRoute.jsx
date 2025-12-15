@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, needsPasswordChange, loading, session } = useAuth();
+  const { isAuthenticated, needsPasswordChange, loading, session, user, logout } = useAuth();
+  const isInactive = user?.status && user.status.toLowerCase() === 'inativo';
 
-  if (loading && !session) {
+  if (loading) {
     return (
       <div style={{ 
         display: 'flex', 
@@ -19,7 +20,18 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated && !session) {
+  useEffect(() => {
+    if (isInactive && (isAuthenticated || session)) {
+      logout();
+    }
+  }, [isInactive, isAuthenticated, session, logout]);
+
+  // Não permitir acesso apenas com session; exige isAuthenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  if (isInactive) {
     return <Navigate to="/" replace />;
   }
 

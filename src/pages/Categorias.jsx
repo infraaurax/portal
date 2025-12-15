@@ -281,7 +281,7 @@ const Categorias = () => {
 
   const handleDelete = async () => {
     try {
-      await categoriasService.desativar(contextMenuCategory.id);
+      await categoriasService.excluirPromovendoFilhos(contextMenuCategory.id);
       await carregarCategorias(); // Recarregar categorias
       closeModal();
     } catch (error) {
@@ -504,7 +504,7 @@ const Categorias = () => {
               {contextMenuCategory?.filhos?.length > 0 && (
                 <div className="warning-message">
                   ⚠️ Esta categoria possui {contextMenuCategory.filhos.length} subcategoria(s). 
-                  Elas também serão excluídas.
+                  Ao excluir, as subcategorias serão movidas para o nível acima.
                 </div>
               )}
               <div className="modal-actions">

@@ -36,15 +36,26 @@ export const buscarPorId = async (id) => {
 export const buscarPorEmail = async (email) => {
   try {
     const normalized = (email || '').trim().toLowerCase();
-    const { data, error } = await supabase
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('buscar_operador_por_email', { p_email: normalized });
+      if (!rpcError && rpcData) {
+        if (Array.isArray(rpcData)) {
+          return rpcData[0] || null;
+        }
+        return rpcData || null;
+      }
+    } catch (rpcCatch) {
+      console.warn('[operadoresService] RPC buscar_operador_por_email indisponível:', rpcCatch?.message);
+    }
+
+    const { data: restData, error: restError } = await supabase
       .from('operadores')
       .select('*')
       .eq('email', normalized)
       .limit(1)
-      .limit(1)
       .maybeSingle();
-    if (error) throw error;
-    return data || null;
+    if (restError) throw restError;
+    return restData || null;
   } catch (error) {
     console.error('Erro no serviço buscarPorEmail:', error);
     throw error;

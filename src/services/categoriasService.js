@@ -159,6 +159,127 @@ export const categoriasService = {
       throw error
     }
   },
+  
+  async desativarRecursivo(id) {
+    try {
+      const { data: filhos, error: filhosError } = await supabase
+        .from('categorias')
+        .select('id')
+        .eq('pai_id', id)
+        .eq('ativo', true);
+      if (filhosError) {
+        console.error('Erro ao buscar subcategorias para exclusão:', filhosError);
+        throw filhosError;
+      }
+      for (const filho of filhos || []) {
+        await this.desativarRecursivo(filho.id);
+      }
+      return await this.desativar(id);
+    } catch (error) {
+      console.error('Erro ao desativar categoria em cascata:', error);
+      throw error;
+    }
+  },
+  
+  // Excluir categoria sem cascata: promove filhos para o pai da categoria
+  async excluirPromovendoFilhos(id) {
+    try {
+      const { data: categoria, error: catError } = await supabase
+        .from('categorias')
+        .select('id, pai_id')
+        .eq('id', id)
+        .single();
+      if (catError) throw catError;
+      const novoPaiId = categoria?.pai_id || null;
+      
+      const { error: upError } = await supabase
+        .from('categorias')
+        .update({ pai_id: novoPaiId, updated_at: new Date().toISOString() })
+        .eq('pai_id', id)
+        .eq('ativo', true);
+      if (upError) throw upError;
+      
+      return await this.desativar(id);
+    } catch (error) {
+      console.error('Erro ao excluir promovendo filhos:', error);
+      throw error;
+    }
+  },
+  
+  // Propagar novo índice recursivamente para filhos
+  async propagarIndice(categoriaId, novoIndice) {
+    try {
+      const { error: updError } = await supabase
+        .from('categorias')
+        .update({ indice: novoIndice, updated_at: new Date().toISOString() })
+        .eq('id', categoriaId);
+      if (updError) throw updError;
+      
+      const { data: filhos, error: filhosError } = await supabase
+        .from('categorias')
+        .select('id, indice')
+        .eq('pai_id', categoriaId)
+        .eq('ativo', true)
+        .order('indice', { ascending: true });
+      if (filhosError) throw filhosError;
+      
+      for (let i = 0; i < (filhos || []).length; i++) {
+        const filho = filhos[i];
+        const novoIndiceFilho = `${novoIndice}.${i + 1}`;
+        await this.propagarIndice(filho.id, novoIndiceFilho);
+      }
+    } catch (error) {
+      console.error('Erro ao propagar índice:', error);
+      throw error;
+    }
+  },
+  
+  // Reordenar índices dos irmãos após exclusão (preencher buraco)
+  async renumerarAposExclusao(paiId = null) {
+    try {
+      if (!paiId) {
+        // Reordenar categorias raiz de A, B, C...
+        const { data: raizes, error } = await supabase
+          .from('categorias')
+          .select('id, indice')
+          .is('pai_id', null)
+          .eq('ativo', true)
+          .order('indice', { ascending: true });
+        if (error) throw error;
+        
+        for (let i = 0; i < (raizes || []).length; i++) {
+          const categoria = raizes[i];
+          const novaLetra = String.fromCharCode('A'.charCodeAt(0) + i);
+          await this.propagarIndice(categoria.id, novaLetra);
+        }
+      } else {
+        // Reordenar subcategorias 1, 2, 3...
+        const { data: pai, error: paiError } = await supabase
+          .from('categorias')
+          .select('id, indice')
+          .eq('id', paiId)
+          .single();
+        if (paiError) throw paiError;
+        
+        const { data: irmãos, error: irmError } = await supabase
+          .from('categorias')
+          .select('id, indice')
+          .eq('pai_id', paiId)
+          .eq('ativo', true)
+          .order('indice', { ascending: true });
+        if (irmError) throw irmError;
+        
+        for (let i = 0; i < (irmãos || []).length; i++) {
+          const cat = irmãos[i];
+          const novoIndice = `${pai.indice}.${i + 1}`;
+          await this.propagarIndice(cat.id, novoIndice);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao renumerar após exclusão:', error);
+      throw error;
+    }
+  },
 
   // Reativar categoria
   async reativar(id) {
