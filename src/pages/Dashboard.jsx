@@ -653,12 +653,6 @@ const Dashboard = () => {
   };
 
   // Função para lidar com Enter no textarea
-  const handleObservacaoKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      adicionarObservacao();
-    }
-  };
 
   // Carregar mensagens de um atendimento
   const carregarMensagens = async (atendimentoId) => {
@@ -2350,47 +2344,52 @@ const Dashboard = () => {
               <div className="info-section">
                 <h4>Observações</h4>
                 <div className="observacoes-container">
-                  <div className="nova-observacao">
-                    <textarea
-                      className="observacoes-textarea"
-                      placeholder="Digite uma nova observação..."
-                      value={novaObservacao}
-                      onChange={(e) => setNovaObservacao(e.target.value)}
-                      onKeyPress={handleKeyPressObservacao}
-                      rows={3}
-                    />
-                    <button
-                      className="btn-adicionar-observacao"
-                      onClick={adicionarObservacao}
-                      disabled={!novaObservacao.trim()}
-                    >
-                      Adicionar
-                    </button>
+                  <div className="observacoes-input-container">
+                    <div className="input-group">
+                      <textarea
+                        className="observacao-input"
+                        placeholder="Digite uma nova observação..."
+                        value={novaObservacao}
+                        onChange={(e) => setNovaObservacao(e.target.value)}
+                        onKeyPress={handleKeyPressObservacao}
+                        rows={3}
+                      />
+                      <button
+                        className="btn-adicionar-observacao"
+                        onClick={adicionarObservacao}
+                        disabled={!novaObservacao.trim()}
+                      >
+                        Adicionar
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="observacoes-lista">
+                  <div className="observacoes-timeline">
                     {carregandoObservacoes ? (
                       <div className="observacoes-loading">
                         <p>Carregando observações...</p>
                       </div>
                     ) : observacoes.length > 0 ? (
                       observacoes.map((obs, index) => (
-                        <div key={obs.id || index} className="observacao-item">
-                          <div className="observacao-content">
-                            <p className="observacao-texto">{obs.observacao}</p>
-                          </div>
-                          <div className="observacao-meta">
-                            <span className="observacao-operador">
-                              {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
-                            </span>
-                            <span className="observacao-data">
-                              {formatarDataHora(new Date(obs.created_time))}
-                            </span>
+                        <div key={obs.id || index} className="timeline-item">
+                          <div className="timeline-marker"></div>
+                          <div className="timeline-content">
+                            <div className="timeline-header">
+                              <span className="timeline-operador">
+                                {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
+                              </span>
+                              <span className="timeline-data">
+                                {formatarDataHora(new Date(obs.created_time))}
+                              </span>
+                            </div>
+                            <div className="timeline-texto">
+                              {obs.observacao}
+                            </div>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="observacoes-vazio">
+                      <div className="no-observacoes">
                         <p>Nenhuma observação registrada para este atendimento.</p>
                       </div>
                     )}

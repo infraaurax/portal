@@ -31,6 +31,14 @@ const mockObservacoes = [
 let proximoId = 4;
 
 const observacoesService = {
+  // Compat: listar observações retornando array simples
+  async listarPorAtendimento(atendimentoId) {
+    const res = await this.buscarPorAtendimento(atendimentoId);
+    if (res && res.success && Array.isArray(res.data)) {
+      return res.data.map(obs => ({ ...obs, created_time: obs.data_criacao }));
+    }
+    return [];
+  },
   // Buscar todas as observações de um atendimento
   async buscarPorAtendimento(atendimentoId) {
     try {
@@ -38,7 +46,7 @@ const observacoesService = {
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const observacoes = mockObservacoes.filter(
-        obs => obs.atendimento_id === parseInt(atendimentoId)
+        obs => String(obs.atendimento_id) === String(atendimentoId)
       );
       
       return {
@@ -62,7 +70,7 @@ const observacoesService = {
       
       const novaObservacao = {
         id: proximoId++,
-        atendimento_id: dadosObservacao.atendimento_id,
+        atendimento_id: dadosObservacao.atendimento_id ?? dadosObservacao.id_atendimento,
         operador_id: dadosObservacao.operador_id,
         observacao: dadosObservacao.observacao,
         data_criacao: new Date().toISOString(),
@@ -71,10 +79,7 @@ const observacoesService = {
       
       mockObservacoes.push(novaObservacao);
       
-      return {
-        success: true,
-        data: novaObservacao
-      };
+      return { ...novaObservacao, created_time: novaObservacao.data_criacao };
     } catch (error) {
       console.error('Erro ao criar observação:', error);
       return {
