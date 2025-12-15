@@ -243,6 +243,10 @@ const Dashboard = () => {
               console.log('✅ [Notificações] Dados do atendimento carregados:', atendimento);
               setAtendimentoAguardando(atendimento);
               setModalAtendimentoAguardando(true);
+              if (intervalAceitarAtendimento) {
+                clearInterval(intervalAceitarAtendimento);
+                setIntervalAceitarAtendimento(null);
+              }
               setTempoAceitarAtendimento(45);
               const atendimentoIdParaTimeout = atendimento.id;
               const operadorIdParaTimeout = operadorId;
@@ -349,7 +353,11 @@ const Dashboard = () => {
           console.log('🚀 [Debug] Abrindo modal de atendimento!');
           setAtendimentoAguardando(atendimento);
           setModalAtendimentoAguardando(true);
-          setTempoAceitarAtendimento(40);
+          if (intervalAceitarAtendimento) {
+            clearInterval(intervalAceitarAtendimento);
+            setIntervalAceitarAtendimento(null);
+          }
+          setTempoAceitarAtendimento(45);
           const intervalo = setInterval(() => {
             setTempoAceitarAtendimento(prev => {
               if (prev <= 1) {

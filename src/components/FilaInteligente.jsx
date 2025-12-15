@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import atendimentosService from '../services/atendimentosService';
 import filaSimplificadaService from '../services/filaSimplificadaService';
 import './FilaInteligente.css';
+import { supabase } from '../lib/supabase';
+import { useRef } from 'react';
 
 const FilaInteligente = () => {
   const [atendimentosAguardando, setAtendimentosAguardando] = useState([]);
@@ -14,6 +16,8 @@ const FilaInteligente = () => {
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState(null);
   const [operadoresDisponiveis, setOperadoresDisponiveis] = useState([]);
   const [distribuicaoAutomaticaAtiva, setDistribuicaoAutomaticaAtiva] = useState(false);
+  const autoDistribuicaoRef = useRef(false);
+  useEffect(() => { autoDistribuicaoRef.current = distribuicaoAutomaticaAtiva; }, [distribuicaoAutomaticaAtiva]);
 
   // Buscar atendimentos aguardando
   const carregarAtendimentosAguardando = async () => {
@@ -23,6 +27,8 @@ const FilaInteligente = () => {
       
       // Buscar atendimentos com status "aguardando" (não por fila_status)
       const atendimentos = await atendimentosService.buscarAtendimentosPorStatus('aguardando');
+      // Normalizar visualmente: garantir que só mostre os sem operador e na fila/oferecido
+      const aguardandoFiltrados = (atendimentos || []).filter(a => !a.operador_id);
       console.log('📋 Atendimentos encontrados:', atendimentos);
       console.log('📊 Quantidade de atendimentos:', atendimentos?.length || 0);
       
@@ -30,7 +36,7 @@ const FilaInteligente = () => {
       const risco = await atendimentosService.monitorarAtendimentosRisco();
       const stats = await atendimentosService.obterEstatisticasAtendimentos();
       
-      setAtendimentosAguardando(atendimentos);
+      setAtendimentosAguardando(aguardandoFiltrados);
       setAtendimentosRisco(risco);
       setEstatisticas(stats);
       setLastUpdate(new Date());
@@ -133,6 +139,59 @@ const FilaInteligente = () => {
   useEffect(() => {
     console.log('🚀 Componente FilaInteligente montado');
     carregarAtendimentosAguardando();
+  }, []);
+
+  // Atualização em tempo real sem recarregar a página
+  useEffect(() => {
+    const channel = supabase
+      .channel('fila_inteligente_realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'atendimentos'
+      }, (payload) => {
+        const novo = payload.new;
+        const antigo = payload.old;
+        const isAguardandoElegivel = (row) =>
+          row &&
+          row.status === 'aguardando' &&
+          (!row.operador_id || row.operador_id === null);
+        setAtendimentosAguardando(prev => {
+          let lista = [...prev];
+          if (payload.eventType === 'INSERT') {
+            if (isAguardandoElegivel(novo) && !lista.find(a => a.id === novo.id)) {
+              lista.push({ ...novo });
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const idx = lista.findIndex(a => a.id === (novo?.id || antigo?.id));
+            if (isAguardandoElegivel(novo)) {
+              if (idx >= 0) {
+                lista[idx] = { ...lista[idx], ...novo };
+              } else {
+                lista.push({ ...novo });
+              }
+            } else {
+              if (idx >= 0) {
+                lista.splice(idx, 1);
+              }
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const idDel = antigo?.id;
+            lista = lista.filter(a => a.id !== idDel);
+          }
+          // Ordenar por created_at ASC para consistência visual
+          lista.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          return lista;
+        });
+        // Fallback app-level: se auto distribuição está ativa e registro é elegível, solicita distribuição
+        if (autoDistribuicaoRef.current && isAguardandoElegivel(novo)) {
+          filaSimplificadaService.forcarDistribuicao().catch(() => {});
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Log quando atendimentos são carregados

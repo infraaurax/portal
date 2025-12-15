@@ -234,6 +234,22 @@ const filaSimplificadaService = {
     try {
       console.log('🚀 [Fila Simplificada] Forçando distribuição...');
       
+      // Normalizar fila: limpar oferecidos expirados e garantir 'na_fila' para aguardando sem operador
+      try {
+        await supabase
+          .from('atendimentos')
+          .update({
+            operador_id: null,
+            fila_status: 'na_fila',
+            updated_at: new Date().toISOString()
+          })
+          .eq('status', 'aguardando')
+          .is('operador_id', null)
+          .or('fila_status.is.null,fila_status.eq.oferecido');
+      } catch (normErr) {
+        console.warn('⚠️ [Fila Simplificada] Falha ao normalizar fila:', normErr?.message);
+      }
+      
       const { data, error } = await supabase.rpc('distribuir_atendimento_simples');
 
       if (error) {

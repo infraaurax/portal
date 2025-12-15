@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PageStyles.css';
 import './PerguntasNaoRespondidas.css';
 import { perguntasNaoRespondidasService } from '../services/perguntasNaoRespondidasService';
@@ -16,8 +16,15 @@ const PerguntasNaoRespondidas = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [perguntaSelecionada, setPerguntaSelecionada] = useState(null);
-  const [resposta, setResposta] = useState('');
+  const [respostaHtml, setRespostaHtml] = useState('');
   const [salvandoResposta, setSalvandoResposta] = useState(false);
+  const editorRef = useRef(null);
+  const [modalCriarOpen, setModalCriarOpen] = useState(false);
+  const [novaPergunta, setNovaPergunta] = useState('');
+  const [novaCategoriaId, setNovaCategoriaId] = useState('');
+  const [novoTelefone, setNovoTelefone] = useState('');
+  const [buscaCategoria, setBuscaCategoria] = useState('');
+  const [openCategoriaDropdown, setOpenCategoriaDropdown] = useState(false);
 
   // Carregar perguntas do Supabase
   useEffect(() => {
@@ -58,20 +65,71 @@ const PerguntasNaoRespondidas = () => {
 
   const abrirModalResposta = (pergunta) => {
     setPerguntaSelecionada(pergunta);
-    setResposta('');
+    setRespostaHtml('');
     setModalOpen(true);
   };
 
   const fecharModal = () => {
     setModalOpen(false);
     setPerguntaSelecionada(null);
-    setResposta('');
+    setRespostaHtml('');
+  };
+  
+  const abrirModalCriarPergunta = () => {
+    setModalCriarOpen(true);
+    setNovaPergunta('');
+    setNovaCategoriaId('');
+    setNovoTelefone('');
+    setBuscaCategoria('');
+    setOpenCategoriaDropdown(false);
+  };
+  
+  const fecharModalCriarPergunta = () => {
+    setModalCriarOpen(false);
+    setNovaPergunta('');
+    setNovaCategoriaId('');
+    setNovoTelefone('');
+    setBuscaCategoria('');
+    setOpenCategoriaDropdown(false);
+  };
+  
+  const salvarPerguntaNova = async (e) => {
+    e.preventDefault();
+    if (!novaPergunta.trim()) {
+      alert('Digite a pergunta.');
+      return;
+    }
+    try {
+      let telefoneOperador = '';
+      if (user?.email) {
+        try {
+          const op = await operadoresService.buscarPorEmail(user.email);
+          telefoneOperador = op?.usuario_telefone || op?.telefone || op?.celular || op?.phone || op?.telefone_whatsapp || '';
+        } catch (e) {
+          console.warn('Aviso: não foi possível obter telefone do operador', e?.message);
+        }
+      }
+      await perguntasNaoRespondidasService.criarPerguntaManual({
+        textoPergunta: novaPergunta.trim(),
+        categoriaId: novaCategoriaId || null,
+        operadorId: user?.id || null,
+        usuarioTelefone: (novoTelefone || telefoneOperador || '')
+      });
+      await carregarPerguntas();
+      fecharModalCriarPergunta();
+      alert('Pergunta criada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao criar pergunta manual:', error);
+      alert('Erro ao criar pergunta. Tente novamente.');
+    }
   };
 
   const salvarResposta = async (e) => {
     e.preventDefault();
     
-    if (!resposta.trim()) {
+    const currentHtml = editorRef.current?.innerHTML || respostaHtml || '';
+    const textoLimpo = currentHtml.replace(/<[^>]+>/g, '').trim();
+    if (!textoLimpo) {
       alert('Por favor, digite uma resposta.');
       return;
     }
@@ -82,7 +140,7 @@ const PerguntasNaoRespondidas = () => {
       // Salvar resposta no Supabase
       await perguntasNaoRespondidasService.marcarComoRespondida(
         perguntaSelecionada.id,
-        resposta,
+        currentHtml,
         user?.id
       );
       
@@ -92,7 +150,7 @@ const PerguntasNaoRespondidas = () => {
       // Fechar modal e limpar formulário
       setModalOpen(false);
       setPerguntaSelecionada(null);
-      setResposta('');
+      setRespostaHtml('');
       
       alert('Resposta salva com sucesso!');
     } catch (error) {
@@ -100,6 +158,20 @@ const PerguntasNaoRespondidas = () => {
       alert('Erro ao salvar resposta. Tente novamente.');
     } finally {
       setSalvandoResposta(false);
+    }
+  };
+  
+  const apagarResposta = async (id) => {
+    if (!id) return;
+    const confirmar = window.confirm('Deseja apagar a resposta desta pergunta e voltar para pendente?');
+    if (!confirmar) return;
+    try {
+      await perguntasNaoRespondidasService.apagarResposta(id);
+      await carregarPerguntas();
+      alert('Resposta apagada e pergunta voltou para pendente.');
+    } catch (error) {
+      console.error('Erro ao apagar resposta:', error);
+      alert('Erro ao apagar resposta. Tente novamente.');
     }
   };
 
@@ -148,6 +220,9 @@ const PerguntasNaoRespondidas = () => {
       <div className="page-header">
         <h1 className="page-title">Perguntas não Respondidas</h1>
         <p className="page-description">Gerencie perguntas que ainda aguardam resposta</p>
+        <div style={{ marginTop: '10px' }}>
+          <button className="btn-primary" onClick={abrirModalCriarPergunta}>➕ Criar Pergunta</button>
+        </div>
       </div>
       
       <div className="page-content">
@@ -223,13 +298,22 @@ const PerguntasNaoRespondidas = () => {
                           <span className="question-category">🏷️ {obterNomeCategoria(pergunta.categoria_id)}</span>
                         </div>
                         <div className="question-status">
-                          <span className="status-badge answered">✅ Respondida em {formatarData(pergunta.data_resposta)}</span>
+                          <span className="status-badge answered">✅ Respondida em {formatarData(pergunta.data_resposta || pergunta.updated_at)}</span>
                         </div>
                       </div>
                       <div className="question-content">
                         <h3>{pergunta.pergunta || pergunta.texto}</h3>
                         <div className="question-answer">
-                          <strong>Resposta:</strong> {pergunta.resposta}
+                          <strong>Resposta:</strong>
+                          <div 
+                            className="question-answer-content" 
+                            dangerouslySetInnerHTML={{ __html: (pergunta.resposta_manual || pergunta.resposta || pergunta.resposta_texto || pergunta.texto_resposta || '') }}
+                          />
+                        </div>
+                        <div className="question-actions">
+                          <button className="btn-secondary" onClick={() => apagarResposta(pergunta.id)}>
+                            Apagar Resposta
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -270,38 +354,117 @@ const PerguntasNaoRespondidas = () => {
                 <p>{perguntaSelecionada.pergunta || perguntaSelecionada.texto}</p>
               </div>
 
-              <form onSubmit={salvarResposta}>
+<form id="form-responder" onSubmit={salvarResposta}>
                 <div className="form-group">
-                  <label htmlFor="resposta">Sua Resposta *</label>
-                  <textarea
-                    id="resposta"
-                    value={resposta}
-                    onChange={(e) => setResposta(e.target.value)}
-                    placeholder="Digite aqui a resposta para esta pergunta..."
-                    rows={6}
-                    required
-                    disabled={salvandoResposta}
+                  <label>Sua Resposta *</label>
+                  <div className="richtext-toolbar">
+                    <button type="button" onClick={() => document.execCommand('bold', false)}><b>B</b></button>
+                    <button type="button" onClick={() => document.execCommand('italic', false)}><i>I</i></button>
+                    <button type="button" onClick={() => document.execCommand('underline', false)}><u>U</u></button>
+                    <button type="button" onClick={() => document.execCommand('insertUnorderedList', false)}>• Lista</button>
+                  </div>
+                  <div
+                    className="richtext-editor"
+                    contentEditable
+                    suppressContentEditableWarning={true}
+                    ref={editorRef}
+                    onInput={(e) => setRespostaHtml(e.currentTarget.innerHTML)}
                   />
                 </div>
-                
-                <div className="modal-actions">
-                  <button 
-                    type="button" 
-                    className="btn-secondary" 
-                    onClick={fecharModal}
-                    disabled={salvandoResposta}
-                  >
-                    Cancelar
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="btn-primary"
-                    disabled={salvandoResposta}
-                  >
-                    {salvandoResposta ? '💾 Salvando...' : '💾 Salvar Resposta'}
-                  </button>
-                </div>
               </form>
+ 
+              
+            </div>
+            <div className="modal-actions">
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={fecharModal}
+                disabled={salvandoResposta}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit"
+                form="form-responder"
+                className="btn-primary"
+                disabled={salvandoResposta}
+              >
+                {salvandoResposta ? '💾 Salvando...' : '💾 Salvar Resposta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal para Criar Pergunta */}
+      {modalCriarOpen && (
+        <div className="modal-overlay" onClick={fecharModalCriarPergunta}>
+          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Criar Pergunta</h3>
+              <button className="modal-close" onClick={fecharModalCriarPergunta}>×</button>
+            </div>
+            <form id="form-criar" className="modal-body" onSubmit={salvarPerguntaNova}>
+              <div className="form-group">
+                <label>Pergunta *</label>
+                <textarea
+                  value={novaPergunta}
+                  onChange={(e) => setNovaPergunta(e.target.value)}
+                  placeholder="Digite a pergunta do cliente..."
+                  rows={4}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Categoria</label>
+                <div className="dropdown-select" onClick={() => setOpenCategoriaDropdown(prev => !prev)}>
+                  <span className="dropdown-selected">
+                    {novaCategoriaId ? obterNomeCategoria(parseInt(novaCategoriaId)) : 'Selecione (opcional)'}
+                  </span>
+                  <span className="dropdown-caret">▾</span>
+                </div>
+                {openCategoriaDropdown && (
+                  <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={buscaCategoria}
+                      onChange={(e) => setBuscaCategoria(e.target.value)}
+                      placeholder="Buscar categoria..."
+                      className="dropdown-search-input"
+                    />
+                    <div className="dropdown-items">
+                      {(buscaCategoria ? categorias.filter(cat => (cat.nome || '').toLowerCase().includes(buscaCategoria.toLowerCase())) : categorias)
+                        .map(cat => (
+                          <div
+                            key={cat.id}
+                            className={`dropdown-item ${String(novaCategoriaId) === String(cat.id) ? 'selected' : ''}`}
+                            onClick={() => { setNovaCategoriaId(String(cat.id)); setOpenCategoriaDropdown(false); }}
+                          >
+                            {cat.nome}
+                          </div>
+                        ))
+                      }
+                      {categorias.length === 0 && (
+                        <div className="dropdown-empty">Nenhuma categoria</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label>Telefone do Cliente</label>
+                <input
+                  type="text"
+                  value={novoTelefone}
+                  onChange={(e) => setNovoTelefone(e.target.value)}
+                  placeholder="(opcional)"
+                />
+              </div>
+            </form>
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" onClick={fecharModalCriarPergunta}>Cancelar</button>
+              <button type="submit" className="btn-primary" form="form-criar">Criar</button>
             </div>
           </div>
         </div>
