@@ -700,6 +700,39 @@ const atendimentosService = {
       console.error('Erro ao buscar mensagem por ID:', error);
       return null;
     }
+  },
+  
+  async enviarWebhookResetarAtendimento(clienteTelefone) {
+    try {
+      const telefoneStr = String(clienteTelefone || '');
+      const apenasNumeros = telefoneStr.replace(/\D/g, '');
+      if (!apenasNumeros) {
+        console.warn('⚠️ Telefone do cliente ausente para webhook resetar_atendimento');
+        return { success: false, reason: 'telefone_ausente' };
+      }
+      console.log('📤 Enviando webhook resetar_atendimento:', { cliente_telefone: apenasNumeros });
+      const resp = await fetch('https://webhook.auraxcred.com.br/webhook/resetar_atendimento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_telefone: apenasNumeros })
+      });
+      let data;
+      const ct = resp.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        data = await resp.json();
+      } else {
+        data = await resp.text();
+      }
+      if (!resp.ok) {
+        console.error('❌ Erro ao enviar webhook resetar_atendimento:', { status: resp.status, data });
+        return { success: false, status: resp.status, data };
+      }
+      console.log('✅ Webhook resetar_atendimento enviado com sucesso:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Erro ao enviar webhook resetar_atendimento:', error);
+      return { success: false, error };
+    }
   }
 };
 

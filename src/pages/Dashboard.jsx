@@ -1306,6 +1306,8 @@ const Dashboard = () => {
 
       console.log('✅ Atendimento finalizado com sucesso:', data);
 
+      await atendimentosService.enviarWebhookResetarAtendimento(atendimentoParaFinalizar.telefone);
+
       // Atualizar a lista de atendimentos
       await carregarAtendimentos();
 

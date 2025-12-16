@@ -165,6 +165,8 @@ const AtendimentosNaoFinalizados = () => {
         
         const resultado = await atendimentosService.finalizarAtendimento(atendimento.id);
         
+        await atendimentosService.enviarWebhookResetarAtendimento(atendimento.telefone);
+        
         console.log('✅ Atendimento finalizado:', resultado);
         alert(`Atendimento de ${atendimento.nome} finalizado com sucesso!`);
         
