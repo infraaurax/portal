@@ -2267,142 +2267,146 @@ const Dashboard = () => {
               <h3>Informações do Atendimento</h3>
               <button className="modal-close" onClick={fecharModalInformacoes}>×</button>
             </div>
-            <div className="modal-body">
-              <div className="info-section">
-                <h4>Dados do Cliente</h4>
-                <div className="info-container-split">
-                  <div className="info-section-50">
-                    <div className="info-item">
-                      <label>NOME:</label>
-                      <span>{atendimentoSelecionado.nome}</span>
+            <div className="modal-body info-body-grid">
+              <div className="info-left">
+                <div className="info-section">
+                  <h4>Dados do Cliente</h4>
+                  <div className="info-container-split">
+                    <div className="info-section-50">
+                      <div className="info-item">
+                        <label>NOME:</label>
+                        <span>{atendimentoSelecionado.nome}</span>
+                      </div>
+                      <div className="info-item">
+                        <label>E-MAIL:</label>
+                        <div className="info-item-with-edit">
+                          <span>{atendimentoSelecionado.email || 'Nenhum e-mail cadastrado'}</span>
+                          <button
+                            className="btn-edit-field"
+                            onClick={() => {
+                              setNovoEmail(atendimentoSelecionado.email || '');
+                              setModalEditarEmail(true);
+                            }}
+                            title="Editar email"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="info-item">
-                      <label>E-MAIL:</label>
-                      <div className="info-item-with-edit">
-                        <span>{atendimentoSelecionado.email || 'Nenhum e-mail cadastrado'}</span>
+                    <div className="info-section-50">
+                      <div className="info-item">
+                        <label>TELEFONE:</label>
+                        <span>{atendimentoSelecionado.telefone}</span>
+                      </div>
+                      <div className="info-item">
+                        <label>STATUS:</label>
+                        <span className={`status-badge status-${atendimentoSelecionado.status ? atendimentoSelecionado.status.replace('_', '-') : 'pendente'}`}>
+                          {atendimentoSelecionado.status || 'EM ANDAMENTO'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="info-section">
+                  <h4>Detalhes do Atendimento</h4>
+                  <div className="info-container-split">
+                    <div className="info-section-50">
+                      <div className="info-item">
+                        <label>ID DO ATENDIMENTO:</label>
+                        <span>#{atendimentoSelecionado.codigo}</span>
+                      </div>
+                      <div className="info-item">
+                        <label>OPERADOR RESPONSÁVEL:</label>
+                        <span>
+                          {atendimentoSelecionado.operador_id
+                            ? (operadoresNomes[atendimentoSelecionado.operador_id] || 'Carregando...')
+                            : 'Sem operador atribuído'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    <div className="info-section-50">
+                      <div className="info-item">
+                        <label>DATA DE INÍCIO:</label>
+                        <span>{formatarDataHora(new Date(atendimentoSelecionado.created_at))}</span>
+                      </div>
+                      <div className="info-item">
+                        <label>CATEGORIA:</label>
+                        <span>
+                          {atendimentoSelecionado.categoria_id
+                            ? (categoriasNomes[atendimentoSelecionado.categoria_id] || 'Carregando...')
+                            : 'Categoria não definida'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="info-right">
+                <div className="info-section">
+                  <h4>Descrição do Atendimento</h4>
+                  <div className="descricao-atendimento">
+                    <p>{atendimentoSelecionado.descricao || 'Nenhuma descrição disponível para este atendimento.'}</p>
+                  </div>
+                </div>
+
+                <div className="info-section">
+                  <h4>Observações</h4>
+                  <div className="observacoes-container">
+                    <div className="observacoes-input-container">
+                      <div className="input-group">
+                        <textarea
+                          className="observacao-input"
+                          placeholder="Digite uma nova observação..."
+                          value={novaObservacao}
+                          onChange={(e) => setNovaObservacao(e.target.value)}
+                          onKeyPress={handleKeyPressObservacao}
+                          rows={3}
+                        />
                         <button
-                          className="btn-edit-field"
-                          onClick={() => {
-                            setNovoEmail(atendimentoSelecionado.email || '');
-                            setModalEditarEmail(true);
-                          }}
-                          title="Editar email"
+                          className="btn-adicionar-observacao"
+                          onClick={adicionarObservacao}
+                          disabled={!novaObservacao.trim()}
                         >
-                          ✏️
+                          Adicionar
                         </button>
                       </div>
                     </div>
-                  </div>
-                  <div className="info-section-50">
-                    <div className="info-item">
-                      <label>TELEFONE:</label>
-                      <span>{atendimentoSelecionado.telefone}</span>
-                    </div>
-                    <div className="info-item">
-                      <label>STATUS:</label>
-                      <span className={`status-badge status-${atendimentoSelecionado.status ? atendimentoSelecionado.status.replace('_', '-') : 'pendente'}`}>
-                        {atendimentoSelecionado.status || 'EM ANDAMENTO'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              <div className="info-section">
-                <h4>Detalhes do Atendimento</h4>
-                <div className="info-container-split">
-                  <div className="info-section-50">
-                    <div className="info-item">
-                      <label>ID DO ATENDIMENTO:</label>
-                      <span>#{atendimentoSelecionado.codigo}</span>
-                    </div>
-                    <div className="info-item">
-                      <label>OPERADOR RESPONSÁVEL:</label>
-                      <span>
-                        {atendimentoSelecionado.operador_id
-                          ? (operadoresNomes[atendimentoSelecionado.operador_id] || 'Carregando...')
-                          : 'Sem operador atribuído'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                  <div className="info-section-50">
-                    <div className="info-item">
-                      <label>DATA DE INÍCIO:</label>
-                      <span>{formatarDataHora(new Date(atendimentoSelecionado.created_at))}</span>
-                    </div>
-                    <div className="info-item">
-                      <label>CATEGORIA:</label>
-                      <span>
-                        {atendimentoSelecionado.categoria_id
-                          ? (categoriasNomes[atendimentoSelecionado.categoria_id] || 'Carregando...')
-                          : 'Categoria não definida'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="info-section">
-                <h4>Descrição do Atendimento</h4>
-                <div className="descricao-atendimento">
-                  <p>{atendimentoSelecionado.descricao || 'Nenhuma descrição disponível para este atendimento.'}</p>
-                </div>
-              </div>
-
-              <div className="info-section">
-                <h4>Observações</h4>
-                <div className="observacoes-container">
-                  <div className="observacoes-input-container">
-                    <div className="input-group">
-                      <textarea
-                        className="observacao-input"
-                        placeholder="Digite uma nova observação..."
-                        value={novaObservacao}
-                        onChange={(e) => setNovaObservacao(e.target.value)}
-                        onKeyPress={handleKeyPressObservacao}
-                        rows={3}
-                      />
-                      <button
-                        className="btn-adicionar-observacao"
-                        onClick={adicionarObservacao}
-                        disabled={!novaObservacao.trim()}
-                      >
-                        Adicionar
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="observacoes-timeline">
-                    {carregandoObservacoes ? (
-                      <div className="observacoes-loading">
-                        <p>Carregando observações...</p>
-                      </div>
-                    ) : observacoes.length > 0 ? (
-                      observacoes.map((obs, index) => (
-                        <div key={obs.id || index} className="timeline-item">
-                          <div className="timeline-marker"></div>
-                          <div className="timeline-content">
-                            <div className="timeline-header">
-                              <span className="timeline-operador">
-                                {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
-                              </span>
-                              <span className="timeline-data">
-                                {formatarDataHora(new Date(obs.created_time))}
-                              </span>
-                            </div>
-                            <div className="timeline-texto">
-                              {obs.observacao}
+                    <div className="observacoes-timeline">
+                      {carregandoObservacoes ? (
+                        <div className="observacoes-loading">
+                          <p>Carregando observações...</p>
+                        </div>
+                      ) : observacoes.length > 0 ? (
+                        observacoes.map((obs, index) => (
+                          <div key={obs.id || index} className="timeline-item">
+                            <div className="timeline-marker"></div>
+                            <div className="timeline-content">
+                              <div className="timeline-header">
+                                <span className="timeline-operador">
+                                  {operadoresNomes[obs.operador_id] || 'Operador não encontrado'}
+                                </span>
+                                <span className="timeline-data">
+                                  {formatarDataHora(new Date(obs.created_time))}
+                                </span>
+                              </div>
+                              <div className="timeline-texto">
+                                {obs.observacao}
+                              </div>
                             </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="no-observacoes">
+                          <p>Nenhuma observação registrada para este atendimento.</p>
                         </div>
-                      ))
-                    ) : (
-                      <div className="no-observacoes">
-                        <p>Nenhuma observação registrada para este atendimento.</p>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2545,7 +2549,7 @@ const Dashboard = () => {
         <div className="modal-overlay">
           <div className="modal-content modal-finalizar-atendimento">
             <div className="modal-header">
-              <h2>🏁 Finalizar Atendimento</h2>
+              <h2>Finalizar Atendimento</h2>
               <button className="modal-close" onClick={fecharModalFinalizarAtendimento}>×</button>
             </div>
             <div className="modal-body">
@@ -2582,7 +2586,7 @@ const Dashboard = () => {
                 onClick={confirmarFinalizarAtendimento}
                 disabled={finalizandoAtendimento}
               >
-                {finalizandoAtendimento ? 'Finalizando...' : '🏁 Finalizar Atendimento'}
+                {finalizandoAtendimento ? 'Finalizando...' : 'Finalizar Atendimento'}
               </button>
             </div>
           </div>

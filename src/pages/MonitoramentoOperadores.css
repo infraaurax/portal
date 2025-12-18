@@ -24,18 +24,19 @@
 }
 
 .btn-refresh {
-  background: #221C62;
-  color: white;
+  background: rgb(108, 117, 125);
+  color: #fff;
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.9rem;
   transition: background-color 0.2s;
+  min-height: 36px;
 }
 
 .btn-refresh:hover {
-  background: #2563eb;
+  background: #1a1548;
 }
 
 /* Estatísticas */
@@ -55,16 +56,10 @@
   border-left: 4px solid;
 }
 
-.stat-card.online {
-  border-left-color: #10b981;
-}
-
-.stat-card.offline {
-  border-left-color: #ef4444;
-}
-
+.stat-card.online,
+.stat-card.offline,
 .stat-card.total {
-  border-left-color: #6366f1;
+  border-left-color: #e1e5e9;
 }
 
 .stat-card h3 {
@@ -80,16 +75,10 @@
   margin: 0.5rem 0;
 }
 
-.stat-card.online .stat-number {
-  color: #10b981;
-}
-
-.stat-card.offline .stat-number {
-  color: #ef4444;
-}
-
+.stat-card.online .stat-number,
+.stat-card.offline .stat-number,
 .stat-card.total .stat-number {
-  color: #6366f1;
+  color: #333;
 }
 
 .stat-card p {
@@ -101,6 +90,13 @@
 /* Seção de Operadores */
 .operadores-section {
   margin-top: 2rem;
+}
+
+.fila-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  align-items: stretch;
 }
 
 .operadores-colunas {
@@ -125,22 +121,20 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
-.coluna-operadores.online .coluna-titulo {
-  background: #ecfdf5;
-  color: #065f46;
-  border-left: 4px solid #10b981;
-}
-
+.coluna-operadores.online .coluna-titulo,
 .coluna-operadores.offline .coluna-titulo {
-  background: #fef2f2;
-  color: #991b1b;
-  border-left: 4px solid #ef4444;
+  background: #fff;
+  color: #333;
+  border-left: 4px solid #e1e5e9;
 }
 
 .operadores-lista {
   padding: 1rem;
   max-height: 600px;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1rem;
 }
 
 .empty-state {
@@ -154,8 +148,8 @@
 .operador-card {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem;
+  border-radius: 20px;
+  padding: 1.25rem;
   margin-bottom: 1rem;
   transition: all 0.2s;
 }
@@ -170,6 +164,10 @@
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
+  background: #f3f4f6;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e9ecef;
 }
 
 .operador-avatar {
@@ -214,14 +212,10 @@
   font-weight: 500;
 }
 
-.status-indicator.online {
-  background: #dcfce7;
-  color: #166534;
-}
-
+.status-indicator.online,
 .status-indicator.offline {
-  background: #fee2e2;
-  color: #991b1b;
+  background: #f3f4f6;
+  color: #666;
 }
 
 /* Estatísticas do Operador */
@@ -230,22 +224,25 @@
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.5rem;
   margin-bottom: 1rem;
+  padding-top: 0.5rem;
 }
 
 .stat {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem;
-  background: white;
-  border-radius: 6px;
+  padding: 0.75rem;
+  background: #fff;
+  border-radius: 12px;
   border: 1px solid #e5e7eb;
 }
 
 .stat-label {
   font-size: 0.8rem;
   color: #6b7280;
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .stat-value {
@@ -266,6 +263,7 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin-top: 0.5rem;
 }
 
 .btn-action {
@@ -278,46 +276,19 @@
   transition: all 0.2s;
   flex: 1;
   min-width: 120px;
+  min-height: 36px;
+  background: rgb(108, 117, 125);
+  color: #fff;
 }
 
-.btn-action.habilitar {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-}
-
-.btn-action.habilitar:hover {
-  background: #bbf7d0;
-}
-
-.btn-action.desabilitar {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
-}
-
-.btn-action.desabilitar:hover {
-  background: #fecaca;
-}
-
-.btn-action.online {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-}
-
+.btn-action.habilitar:hover,
 .btn-action.online:hover {
-  background: #bbf7d0;
+  background: #1a1548;
 }
 
-.btn-action.offline {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
-}
-
+.btn-action.desabilitar:hover,
 .btn-action.offline:hover {
-  background: #fecaca;
+  background: #dc2626;
 }
 
 /* Responsividade */
@@ -325,6 +296,10 @@
   .operadores-colunas {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+  
+  .operadores-lista {
+    grid-template-columns: 1fr;
   }
   
   .stats-section {

@@ -418,11 +418,15 @@ SECURITY DEFINER
 AS $$
 BEGIN
   IF NEW.habilitado = true AND (OLD.habilitado IS DISTINCT FROM NEW.habilitado OR NEW.pos_token IS NULL) THEN
-    SELECT COALESCE(MAX(pos_token), 0) + 1 INTO NEW.pos_token
-    FROM public.operadores
-    WHERE habilitado = true AND id <> NEW.id;
-    IF NEW.pos_token IS NULL OR NEW.pos_token < 1 THEN
-      NEW.pos_token := 1;
+    IF LOWER(COALESCE(NEW.perfil, '')) <> 'admin' THEN
+      SELECT COALESCE(MAX(pos_token), 0) + 1 INTO NEW.pos_token
+      FROM public.operadores
+      WHERE habilitado = true AND id <> NEW.id AND LOWER(COALESCE(perfil, '')) <> 'admin';
+      IF NEW.pos_token IS NULL OR NEW.pos_token < 1 THEN
+        NEW.pos_token := 1;
+      END IF;
+    ELSE
+      NEW.pos_token := NULL;
     END IF;
   ELSIF NEW.habilitado = false THEN
     NEW.pos_token := NULL;
@@ -436,6 +440,25 @@ CREATE TRIGGER trigger_set_pos_token_on_enable
 BEFORE UPDATE OF habilitado ON public.operadores
 FOR EACH ROW
 EXECUTE FUNCTION set_pos_token_on_habilitar();
+
+CREATE OR REPLACE FUNCTION enforce_admin_pos_token_null()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF LOWER(COALESCE(NEW.perfil, '')) = 'admin' THEN
+    NEW.pos_token := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_enforce_admin_pos_token ON public.operadores;
+CREATE TRIGGER trigger_enforce_admin_pos_token
+BEFORE INSERT OR UPDATE OF pos_token, perfil ON public.operadores
+FOR EACH ROW
+EXECUTE FUNCTION enforce_admin_pos_token_null();
 
 DROP TRIGGER IF EXISTS trigger_atendimento_novo_fila ON public.atendimentos;
 DROP TRIGGER IF EXISTS trigger_atendimento_para_fila ON public.atendimentos;
@@ -1139,7 +1162,7 @@ BEGIN
     SET 
       habilitado = true,
       online = true,
-      pos_token = v_novo_token,
+      pos_token = CASE WHEN LOWER(COALESCE(perfil, '')) <> 'admin' THEN v_novo_token ELSE NULL END,
       updated_at = NOW()
     WHERE operadores.id = p_operador_id;
     

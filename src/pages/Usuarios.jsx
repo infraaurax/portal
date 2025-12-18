@@ -4,6 +4,8 @@ import { buscarTodos, criar, atualizar, alterarStatus } from '../services/operad
 import { supabase, getRedirectUrl } from '../lib/supabase';
 import './PageStyles.css';
 import './Usuarios.css';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPen, faEnvelope, faLock, faUnlock } from '@fortawesome/free-solid-svg-icons';
 
 const Usuarios = () => {
   const { user } = useAuth();
@@ -347,12 +349,8 @@ const Usuarios = () => {
                   <td>{new Date(usuario.dataCriacao).toLocaleDateString('pt-BR')}</td>
                   <td>{usuario.ultimoAcesso === '-' ? '-' : new Date(usuario.ultimoAcesso).toLocaleDateString('pt-BR')}</td>
                   <td className="actions-cell">
-                    <button
-                      onClick={() => handleOpenModal('edit', usuario)}
-                      className="btn-edit"
-                      title="Editar usuário"
-                    >
-                      ✏️
+                    <button onClick={() => handleOpenModal('edit', usuario)} className="btn-edit" title="Editar usuário">
+                      <FontAwesomeIcon icon={faPen} />
                     </button>
                     <button
                       onClick={() => handleResendPassword(usuario)}
@@ -360,14 +358,14 @@ const Usuarios = () => {
                       disabled={usuario.ultimoAcesso !== '-'}
                       title={usuario.ultimoAcesso === '-' ? 'Enviar magic link (primeiro acesso)' : 'Enviar magic link'}
                     >
-                      📧
+                      <FontAwesomeIcon icon={faEnvelope} />
                     </button>
                     <button
                       onClick={() => handleOpenModal('block', usuario)}
                       className={`btn-block ${usuario.status === 'Ativo' ? 'block' : 'unblock'}`}
                       title={usuario.status === 'Ativo' ? 'Bloquear usuário' : 'Desbloquear usuário'}
                     >
-                      {usuario.status === 'Ativo' ? '🔒' : '🔓'}
+                      <FontAwesomeIcon icon={usuario.status === 'Ativo' ? faLock : faUnlock} />
                     </button>
                   </td>
                 </tr>

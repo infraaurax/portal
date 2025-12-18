@@ -231,6 +231,31 @@ const FilaInteligente = () => {
     return 'text-red-500';
   };
 
+  const getTempoClasseCard = (dataCriacao) => {
+    const agora = new Date();
+    const criacao = new Date(dataCriacao);
+    const diffMs = agora - criacao;
+    const diffMin = Math.floor(diffMs / (1000 * 60));
+    if (diffMin <= 30) return 'tempo-verde';
+    if (diffMin <= 60) return 'tempo-laranja';
+    return 'tempo-vermelho';
+  };
+
+  const finalizarAtendimentoFila = async (atendimento) => {
+    try {
+      const { error } = await supabase.rpc('finalizar_atendimento_com_fila', {
+        p_atendimento_id: atendimento.id
+      });
+      if (error) throw error;
+      await carregarAtendimentosAguardando();
+      try { await filaSimplificadaService.forcarDistribuicao(); } catch {}
+      alert('Atendimento finalizado com sucesso!');
+    } catch (e) {
+      console.error('❌ Erro ao finalizar atendimento (fila):', e);
+      alert('Erro ao finalizar atendimento: ' + (e.message || 'Erro desconhecido'));
+    }
+  };
+
   // Função de teste para verificar dados na fila
   const testarDadosFila = async () => {
     try {
@@ -263,7 +288,7 @@ const FilaInteligente = () => {
       {/* Header */}
       <div className="fila-header">
         <div className="fila-title-section">
-          <h2 className="fila-title">📋 Fila Inteligente</h2>
+          <h2 className="fila-title">Fila Inteligente</h2>
           <p className="fila-subtitle">Atendimentos aguardando distribuição</p>
         </div>
         
@@ -342,43 +367,49 @@ const FilaInteligente = () => {
             {atendimentosAguardando.map((atendimento) => (
               <div 
                 key={atendimento.id} 
-                className="atendimento-card"
+                className={`atendimento-card ${getTempoClasseCard(atendimento.created_at)}`}
                 onClick={() => abrirModalAtribuir(atendimento)}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="card-header">
                   <div className="cliente-info">
                     <div className="cliente-avatar">{atendimento.avatar}</div>
-                    <div className="cliente-detalhes">
-                      <h4 className="cliente-nome">{atendimento.nome}</h4>
-                      <p className="cliente-contato">{atendimento.telefone || atendimento.email}</p>
+                    <div className="cliente-dados">
+                      <div className="nome-container">
+                        <h4>{atendimento.nome}</h4>
+                      </div>
+                      <div className="atendimento-codigo">#{atendimento.codigo}</div>
+                      <p>{atendimento.telefone || atendimento.email}</p>
+                      <p>Responsável: Sem operador atribuido</p>
                     </div>
                   </div>
-                  <div className={`tempo-espera ${getCorTempoEspera(atendimento.created_at)}`}>
-                    ⏱️ {formatarTempoEspera(atendimento.created_at)}
+                  <div className="status-info">
+                    <div className="tempo-sem-resposta">
+                      <span className="tempo-label">Sem resposta há:</span>
+                      <span className="tempo-valor">{formatarTempoEspera(atendimento.created_at)}</span>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="card-body">
-                  <p className="ultima-mensagem">{atendimento.ultima_mensagem}</p>
-                  <div className="atendimento-meta">
-                    <span className="codigo">#{atendimento.codigo}</span>
-                    <span className={`prioridade prioridade-${atendimento.prioridade}`}>
-                      {atendimento.prioridade}
-                    </span>
+                  <div className="ultima-mensagem">
+                    <strong>Última mensagem:</strong>
+                    <p>{atendimento.ultima_mensagem}</p>
                   </div>
                 </div>
                 
-                <div className="card-footer">
+                <div className="card-actions">
                   <button 
-                    className="btn-atribuir"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      console.log('🎯 Botão clicado! Atendimento:', atendimento);
-                      abrirModalAtribuir(atendimento);
-                    }}
+                    className="btn-realocar"
+                    onClick={(e) => { e.stopPropagation(); abrirModalAtribuir(atendimento); }}
                   >
-                    👤 Atribuir Operador
+                    Realocar Atendimento
+                  </button>
+                  <button 
+                    className="btn-finalizar"
+                    onClick={(e) => { e.stopPropagation(); finalizarAtendimentoFila(atendimento); }}
+                  >
+                    Finalizar Atendimento
                   </button>
                 </div>
               </div>

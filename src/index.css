@@ -32,3 +32,70 @@ button {
 input, textarea, select {
   font-family: inherit;
 }
+
+/* Botões consistentes em modais (tamanho e espaçamento) */
+.modal-actions .btn-primary,
+.modal-actions .btn-secondary {
+  min-width: 140px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  width: -webkit-fill-available;
+}
+
+.modal-footer .btn-primary,
+.modal-footer .btn-secondary {
+  min-width: 140px;
+  padding: 10px 20px;
+  border-radius: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.modal-actions .btn-primary,
+.modal-actions .btn-secondary,
+.modal-actions .btn-danger {
+  background: rgb(108, 117, 125);
+  color: #fff;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 0.95rem;
+  min-height: 42px;
+  margin-top: 0;
+}
+
+.modal-footer .btn-primary,
+.modal-footer .btn-secondary {
+  background: rgb(108, 117, 125);
+  color: #fff;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 0.95rem;
+  min-height: 42px;
+  margin-top: 0;
+}
+
+.modal-actions .btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.modal-actions .btn-primary:hover:not(:disabled),
+.modal-actions .btn-secondary:hover:not(:disabled) {
+  background: #1a1548;
+}
+
+.modal-header h1,
+.modal-header h2,
+.modal-header h3 {
+  color: #333;
+  font-weight: 600;
+}

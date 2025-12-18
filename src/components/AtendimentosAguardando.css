@@ -207,7 +207,7 @@
 .cliente-avatar {
   width: 50px;
   height: 50px;
-  background: linear-gradient(135deg, #3498db, #2980b9);
+  background: #6c757d;
   color: white;
   border-radius: 50%;
   display: flex;

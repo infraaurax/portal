@@ -271,19 +271,26 @@ export const alterarHabilitacao = async (id, habilitado) => {
 
     // Se estiver habilitando, adicionar à fila (pos_token)
     if (habilitado) {
-      // Buscar o próximo token na fila
-      const { data: maxToken } = await supabase
+      const { data: operadorPerfilRow } = await supabase
         .from('operadores')
-        .select('pos_token')
-        .eq('habilitado', true)
-        .order('pos_token', { ascending: false })
-        .limit(1)
+        .select('perfil')
+        .eq('id', id)
         .single();
-
-      const nextToken = (maxToken?.pos_token || 0) + 1;
-      updateData.pos_token = nextToken;
-
-      console.log('📊 [operadoresService] Próximo token na fila:', nextToken);
+      const isAdmin = (operadorPerfilRow?.perfil || '').toLowerCase() === 'admin';
+      if (!isAdmin) {
+        const { data: maxToken } = await supabase
+          .from('operadores')
+          .select('pos_token')
+          .eq('habilitado', true)
+          .order('pos_token', { ascending: false })
+          .limit(1)
+          .single();
+        const nextToken = (maxToken?.pos_token || 0) + 1;
+        updateData.pos_token = nextToken;
+        console.log('📊 [operadoresService] Próximo token na fila:', nextToken);
+      } else {
+        updateData.pos_token = null;
+      }
     } else {
       // Se desabilitando, remover da fila
       updateData.pos_token = null;

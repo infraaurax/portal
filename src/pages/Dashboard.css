@@ -1563,9 +1563,51 @@
 
 /* Modal de Informações */
 .modal-informacoes {
-  max-width: 700px;
-  max-height: 80vh;
-  width: 90vw;
+  max-width: 70rem !important;
+  max-height: 85vh;
+  width: 95vw;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-informacoes .modal-header {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+  border-bottom: 1px solid #e9edef;
+}
+
+.modal-informacoes .modal-actions {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  z-index: 2;
+  border-top: 1px solid #e9edef;
+}
+
+.modal-informacoes .modal-body {
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 20px;
+}
+
+.info-body-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 20px;
+  align-items: start;
+  height: 100%;
+}
+
+.info-left {
+  min-width: 0;
+}
+
+.info-right {
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
 .modal-content-info {
@@ -1945,6 +1987,11 @@
     width: 95vw;
     max-width: none;
     margin: 10px;
+  }
+
+  .info-body-grid {
+    grid-template-columns: 1fr;
+    height: auto;
   }
 
   .info-grid {
@@ -3176,7 +3223,7 @@
   padding: 16px;
   border-radius: 8px;
   margin: 16px 0;
-  border-left: 4px solid #dc2626;
+  border-left: 4px solid #e1e5e9;
 }
 
 .atendimento-detalhes p {
@@ -3211,8 +3258,8 @@
 
 /* Botão de Confirmar Finalização */
 .btn-finalizar-confirmar {
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  color: white;
+  background: rgb(108, 117, 125);
+  color: #fff;
   border: none;
   padding: 12px 24px;
   border-radius: 8px;
@@ -3220,28 +3267,21 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
+  min-width: 15rem;
+  min-height: 42px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-width: 180px;
   justify-content: center;
+  line-height: 1;
 }
 
 .btn-finalizar-confirmar:hover:not(:disabled) {
-  background: linear-gradient(135deg, #b91c1c, #991b1b);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  background: #dc2626;
 }
 
 .btn-finalizar-confirmar:disabled {
   background: #9ca3af;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.btn-finalizar-confirmar:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 /* Responsividade do Modal de Finalizar */

@@ -56,28 +56,29 @@
   gap: 12px;
   margin-bottom: 20px;
   padding-bottom: 12px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 1px solid #e1e5e9;
 }
 
 .status-icon {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  color: #6b7280;
 }
 
 .status-titulo {
   margin: 0;
-  color: #1f2937;
+  color: #333;
   font-size: 1.5rem;
   font-weight: 600;
-  flex: 1;
 }
 
 .status-contador {
-  background: #221C62;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 20px;
+  background: #f3f4f6;
+  color: #374151;
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 0.9rem;
   font-weight: 500;
+  border: 1px solid #e1e5e9;
 }
 
 /* Linha de Atendimentos */
@@ -86,6 +87,13 @@
   gap: 20px;
   overflow-x: auto;
   padding-bottom: 8px;
+}
+
+.atendimentos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  align-items: stretch;
 }
 
 .atendimentos-linha::-webkit-scrollbar {
@@ -124,25 +132,23 @@
 }
 
 /* Prioridades */
-.atendimento-card.prioridade-alta {
-  border-left: 4px solid #ef4444;
+.atendimento-card.tempo-verde {
+  border-left: 4px solid #16a34a;
 }
-
-.atendimento-card.prioridade-media {
+.atendimento-card.tempo-laranja {
   border-left: 4px solid #f59e0b;
 }
-
-.atendimento-card.prioridade-baixa {
-  border-left: 4px solid #10b981;
+.atendimento-card.tempo-vermelho {
+  border-left: 4px solid #dc2626;
 }
 
 /* Header do Card */
 .card-header {
-  padding: 20px 20px 16px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    flex-direction: column;
+    align-items: stretch;
 }
 
 .cliente-info {
@@ -156,7 +162,7 @@
   width: 45px;
   height: 45px;
   border-radius: 50%;
-  background: #221C62;
+  background: #6c757d;
   color: white;
   display: flex;
   align-items: center;
@@ -218,10 +224,9 @@
 }
 
 .status-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 /* Status Badges */
@@ -235,31 +240,30 @@
 }
 
 .status-badge.nao_atendido {
-  background: #fef2f2;
-  color: #dc2626;
+  background: #f3f4f6;
+  color: #666;
 }
 
 .status-badge.pausado {
-  background: #fef3c7;
-  color: #d97706;
+  background: #f3f4f6;
+  color: #666;
 }
 
 .status-badge.transferindo {
-  background: #e8eaf6;
-  color: #3f51b5;
+  background: #f3f4f6;
+  color: #666;
 }
 
 .status-badge.abandonado {
   background: #f3f4f6;
-  color: #6b7280;
+  color: #666;
 }
 
 /* Tempo sem resposta */
 .tempo-sem-resposta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .tempo-label {
@@ -325,9 +329,18 @@
   border-top: 1px solid #f3f4f6;
 }
 
+.card-actions .btn-realocar,
+.card-actions .btn-finalizar {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .btn-retomar {
-  background: #16a34a;
-  color: white;
+  background: #6c757d;
+  color: #fff;
   border: none;
   padding: 8px 16px;
   border-radius: 6px;
@@ -339,13 +352,12 @@
 }
 
 .btn-retomar:hover {
-  background: #15803d;
-  transform: translateY(-1px);
+  background: #1a1548;
 }
 
 .btn-realocar {
-  background: #2563eb;
-  color: white;
+  background: #6c757d;
+  color: #fff;
   border: none;
   padding: 8px 16px;
   border-radius: 6px;
@@ -357,13 +369,12 @@
 }
 
 .btn-realocar:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
+  background: #1a1548;
 }
 
 .btn-finalizar {
-  background: #dc2626;
-  color: white;
+  background: #6c757d;
+  color: #fff;
   border: none;
   padding: 8px 16px;
   border-radius: 6px;
@@ -374,6 +385,10 @@
   flex: 1;
 }
 
+.btn-finalizar:hover {
+  background: #dc2626;
+}
+
 
 
 /* Modal de Edição de Nome */
@@ -382,6 +397,7 @@
   border-radius: 12px;
   width: 90%;
   max-width: 500px;
+  overflow: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
@@ -498,6 +514,48 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
+}
+
+.modal-finalizar {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: modalSlideIn 0.3s ease-out;
+  overflow: auto;
+}
+
+.finalizar-info {
+  background: #f9fafb;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.finalizar-row {
+  margin: 4px 0;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.finalizar-warning {
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  padding: 12px;
+  color: #b91c1c;
+}
+
+.finalizar-warning-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #b91c1c;
+}
+
+.finalizar-warning-text {
+  font-size: 0.9rem;
 }
 
 .modal-realocacao {

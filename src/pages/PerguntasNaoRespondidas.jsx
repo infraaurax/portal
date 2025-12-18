@@ -5,6 +5,8 @@ import { perguntasNaoRespondidasService } from '../services/perguntasNaoRespondi
 import { categoriasService } from '../services/categoriasService';
 import operadoresService from '../services/operadoresService';
 import { useAuth } from '../context/AuthContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUser, faPhone, faCalendar, faTag } from '@fortawesome/free-solid-svg-icons';
 
 const PerguntasNaoRespondidas = () => {
   const { user } = useAuth();
@@ -25,6 +27,10 @@ const PerguntasNaoRespondidas = () => {
   const [novoTelefone, setNovoTelefone] = useState('');
   const [buscaCategoria, setBuscaCategoria] = useState('');
   const [openCategoriaDropdown, setOpenCategoriaDropdown] = useState(false);
+  const [activeTab, setActiveTab] = useState('pendentes');
+  const [pagePendentes, setPagePendentes] = useState(1);
+  const [pageRespondidas, setPageRespondidas] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Carregar perguntas do Supabase
   useEffect(() => {
@@ -177,6 +183,49 @@ const PerguntasNaoRespondidas = () => {
 
   const perguntasPendentes = perguntas.filter(p => p.status === 'pendente' || !p.status);
   const perguntasRespondidas = perguntas.filter(p => p.status === 'respondida');
+  const perPage = 8;
+  const getDataPergunta = (p) => {
+    const v = p?.created_at || p?.data_hora || p?.updated_at;
+    const d = v ? new Date(v) : null;
+    return d && !isNaN(d) ? d : new Date(0);
+  };
+  const getDataResposta = (p) => {
+    const v = p?.data_resposta || p?.updated_at || p?.created_at || p?.data_hora;
+    const d = v ? new Date(v) : null;
+    return d && !isNaN(d) ? d : new Date(0);
+  };
+  const extractHtmlToText = (html) => (html || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const getRespostaTexto = (p) => extractHtmlToText(p?.resposta_manual || p?.resposta || p?.resposta_texto || p?.texto_resposta || '');
+  const getRespostaPreview = (p) => {
+    const t = getRespostaTexto(p);
+    if (t.length <= 60) return t;
+    return t.slice(0, 60) + '...';
+  };
+  const normalize = (s) => (s || '').toString().toLowerCase();
+  const matchesSearch = (p) => {
+    const term = normalize(searchTerm);
+    if (!term) return true;
+    const qu = normalize(p?.pergunta || p?.texto);
+    const cat = normalize(obterNomeCategoria(p?.categoria_id));
+    const op = normalize(obterNomeOperador(p?.operador_id));
+    const tel = normalize(p?.usuario_telefone || '');
+    const ans = normalize(getRespostaTexto(p));
+    return qu.includes(term) || cat.includes(term) || op.includes(term) || tel.includes(term) || ans.includes(term);
+  };
+  const pendentesFiltradas = perguntasPendentes.filter(matchesSearch);
+  const respondidasFiltradas = perguntasRespondidas.filter(matchesSearch);
+  const pendentesOrdenadas = [...pendentesFiltradas].sort((a, b) => getDataPergunta(b) - getDataPergunta(a));
+  const respondidasOrdenadas = [...respondidasFiltradas].sort((a, b) => getDataResposta(b) - getDataResposta(a));
+  const totalPaginasPendentes = Math.max(1, Math.ceil(pendentesOrdenadas.length / perPage));
+  const totalPaginasRespondidas = Math.max(1, Math.ceil(respondidasOrdenadas.length / perPage));
+  const paginaPendentesCorrigida = Math.min(pagePendentes, totalPaginasPendentes);
+  const paginaRespondidasCorrigida = Math.min(pageRespondidas, totalPaginasRespondidas);
+  const pendentesPagina = pendentesOrdenadas.slice((paginaPendentesCorrigida - 1) * perPage, paginaPendentesCorrigida * perPage);
+  const respondidasPagina = respondidasOrdenadas.slice((paginaRespondidasCorrigida - 1) * perPage, paginaRespondidasCorrigida * perPage);
+  useEffect(() => {
+    setPagePendentes(1);
+    setPageRespondidas(1);
+  }, [searchTerm]);
 
   // Função para formatar data
   const formatarData = (dataString) => {
@@ -189,39 +238,26 @@ const PerguntasNaoRespondidas = () => {
     }
   };
 
-  // Função para calcular tempo sem resposta
-  const calcularTempoSemResposta = (dataString) => {
-    if (!dataString) return 'Tempo indeterminado';
-    try {
-      const dataCriacao = new Date(dataString);
-      const agora = new Date();
-      const diferencaMs = agora - dataCriacao;
-      
-      const minutos = Math.floor(diferencaMs / (1000 * 60));
-      const horas = Math.floor(minutos / 60);
-      const dias = Math.floor(horas / 24);
-      
-      if (dias > 0) {
-        return `${dias} dia${dias > 1 ? 's' : ''}`;
-      } else if (horas > 0) {
-        return `${horas} hora${horas > 1 ? 's' : ''}`;
-      } else if (minutos > 0) {
-        return `${minutos} minuto${minutos > 1 ? 's' : ''}`;
-      } else {
-        return 'Menos de 1 minuto';
-      }
-    } catch {
-      return 'Tempo indeterminado';
-    }
-  };
+ 
 
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1 className="page-title">Perguntas não Respondidas</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <h1 className="page-title">Perguntas não Respondidas</h1>
+          
+        </div>
         <p className="page-description">Gerencie perguntas que ainda aguardam resposta</p>
         <div style={{ marginTop: '10px' }}>
           <button className="btn-primary" onClick={abrirModalCriarPergunta}>➕ Criar Pergunta</button>
+          <input 
+            type="text" 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            placeholder="Buscar perguntas e respostas..." 
+            className="select-search" 
+            style={{ maxWidth: '360px' }}
+          />
         </div>
       </div>
       
@@ -246,79 +282,127 @@ const PerguntasNaoRespondidas = () => {
 
         {!carregando && !erro && (
           <>
-            <div className="questions-section">
-              <h2>Perguntas Pendentes</h2>
-              {perguntasPendentes.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">✅</div>
-                  <h3>Todas as perguntas foram respondidas!</h3>
-                  <p>Não há perguntas pendentes no momento.</p>
-                </div>
-              ) : (
-                <div className="questions-list">
-                  {perguntasPendentes.map(pergunta => (
-                    <div key={pergunta.id} className="question-card">
-                      <div className="question-header">
-                        <div className="question-meta">
-                          <span className="question-user">👤 {obterNomeOperador(pergunta.operador_id)}</span>
-                          <span className="question-date">📅 {formatarData(pergunta.created_at || pergunta.data_hora)}</span>
-                          <span className="question-category">🏷️ {obterNomeCategoria(pergunta.categoria_id)}</span>
-                        </div>
-                        <div className="question-time-pending">
-                          <span className="time-pending">⏰ Sem resposta há {calcularTempoSemResposta(pergunta.created_at || pergunta.data_hora)}</span>
-                        </div>
-                      </div>
-                      <div className="question-content">
-                        <h3>{pergunta.pergunta || pergunta.texto}</h3>
-                      </div>
-                      <div className="question-actions">
-                        <button 
-                          className="btn-primary"
+            <div style={{ display: 'flex', gap: '8px', margin: '10px 0' }}>
+              <button 
+                className={activeTab === 'pendentes' ? 'btn-primary' : 'btn-secondary'}
+                onClick={() => { setActiveTab('pendentes'); setPagePendentes(1); }}
+              >
+                Pendentes
+              </button>
+              <button 
+                className={activeTab === 'respondidas' ? 'btn-primary' : 'btn-secondary'}
+                onClick={() => { setActiveTab('respondidas'); setPageRespondidas(1); }}
+              >
+                Respondidas
+              </button>
+            </div>
+            {activeTab === 'pendentes' && (
+              <div className="questions-section">
+                <h2>Perguntas Pendentes</h2>
+                {pendentesOrdenadas.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">✅</div>
+                    <h3>Todas as perguntas foram respondidas!</h3>
+                    <p>Não há perguntas pendentes no momento.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="questions-list grid">
+                      {pendentesPagina.map(pergunta => (
+                        <div 
+                          key={pergunta.id} 
+                          className="question-card"
                           onClick={() => abrirModalResposta(pergunta)}
                         >
-                          📝 Responder
-                        </button>
-                      </div>
+                          <div className="question-content">
+                            <h3>{pergunta.pergunta || pergunta.texto}</h3>
+                            <div className="question-inline-meta">
+                              <span><FontAwesomeIcon icon={faUser} /> {obterNomeOperador(pergunta.operador_id)}</span>
+                              <span><FontAwesomeIcon icon={faPhone} /> {pergunta.usuario_telefone || 'Telefone não informado'}</span>
+                              <span><FontAwesomeIcon icon={faTag} /> {obterNomeCategoria(pergunta.categoria_id)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-        </div>
-
-            {perguntasRespondidas.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
+                      <button 
+                        className="btn-secondary" 
+                        onClick={() => setPagePendentes(Math.max(1, paginaPendentesCorrigida - 1))}
+                        disabled={paginaPendentesCorrigida <= 1}
+                      >
+                        ◀ Anterior
+                      </button>
+                      <span>Página {paginaPendentesCorrigida} de {totalPaginasPendentes}</span>
+                      <button 
+                        className="btn-secondary" 
+                        onClick={() => setPagePendentes(Math.min(totalPaginasPendentes, paginaPendentesCorrigida + 1))}
+                        disabled={paginaPendentesCorrigida >= totalPaginasPendentes}
+                      >
+                        Próxima ▶
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {activeTab === 'respondidas' && (
               <div className="questions-section">
-                <h2>Perguntas Respondidas Recentemente</h2>
-                <div className="questions-list">
-                  {perguntasRespondidas.slice(0, 3).map(pergunta => (
-                    <div key={pergunta.id} className="question-card answered">
-                      <div className="question-header">
-                        <div className="question-meta">
-                          <span className="question-user">👤 {obterNomeOperador(pergunta.operador_id)}</span>
-                          <span className="question-date">📅 {formatarData(pergunta.created_at || pergunta.data_hora)}</span>
-                          <span className="question-category">🏷️ {obterNomeCategoria(pergunta.categoria_id)}</span>
+                <h2>Perguntas Respondidas</h2>
+                {respondidasOrdenadas.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">ℹ️</div>
+                    <h3>Nenhuma resposta encontrada</h3>
+                    <p>Assim que houver respostas, elas aparecerão aqui.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="questions-list grid">
+                      {respondidasPagina.map(pergunta => (
+                        <div 
+                          key={pergunta.id} 
+                          className="question-card answered"
+                          onClick={() => abrirModalResposta(pergunta)}
+                        >
+                          <div className="question-content">
+                            <h3>{pergunta.pergunta || pergunta.texto}</h3>
+                            <div className="question-inline-meta">
+                              <span><FontAwesomeIcon icon={faUser} /> {obterNomeOperador(pergunta.operador_id)}</span>
+                              <span><FontAwesomeIcon icon={faPhone} /> {pergunta.usuario_telefone || 'Telefone não informado'}</span>
+                              <span><FontAwesomeIcon icon={faTag} /> {obterNomeCategoria(pergunta.categoria_id)}</span>
+                            </div>
+                            <div className="question-answer">
+                              <strong>Resposta:</strong>
+                              <div className="question-answer-content">{getRespostaPreview(pergunta)}</div>
+                            </div>
+                            <div className="question-actions">
+                              <button className="btn-secondary btn-delete" onClick={(e) => { e.stopPropagation(); apagarResposta(pergunta.id); }}>
+                                Apagar Resposta
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="question-status">
-                          <span className="status-badge answered">✅ Respondida em {formatarData(pergunta.data_resposta || pergunta.updated_at)}</span>
-                        </div>
-                      </div>
-                      <div className="question-content">
-                        <h3>{pergunta.pergunta || pergunta.texto}</h3>
-                        <div className="question-answer">
-                          <strong>Resposta:</strong>
-                          <div 
-                            className="question-answer-content" 
-                            dangerouslySetInnerHTML={{ __html: (pergunta.resposta_manual || pergunta.resposta || pergunta.resposta_texto || pergunta.texto_resposta || '') }}
-                          />
-                        </div>
-                        <div className="question-actions">
-                          <button className="btn-secondary" onClick={() => apagarResposta(pergunta.id)}>
-                            Apagar Resposta
-                          </button>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
+                      <button 
+                        className="btn-secondary" 
+                        onClick={() => setPageRespondidas(Math.max(1, paginaRespondidasCorrigida - 1))}
+                        disabled={paginaRespondidasCorrigida <= 1}
+                      >
+                        ◀ Anterior
+                      </button>
+                      <span>Página {paginaRespondidasCorrigida} de {totalPaginasRespondidas}</span>
+                      <button 
+                        className="btn-secondary" 
+                        onClick={() => setPageRespondidas(Math.min(totalPaginasRespondidas, paginaRespondidasCorrigida + 1))}
+                        disabled={paginaRespondidasCorrigida >= totalPaginasRespondidas}
+                      >
+                        Próxima ▶
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>
@@ -327,71 +411,89 @@ const PerguntasNaoRespondidas = () => {
 
       {/* Modal para Responder Pergunta */}
       {modalOpen && perguntaSelecionada && (
-        <div className="modal-overlay" onClick={fecharModal}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content large responder-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Responder Pergunta</h3>
-              <button className="modal-close" onClick={fecharModal}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="question-details">
-                <div className="detail-row">
-                  <strong>Usuário:</strong> {obterNomeOperador(perguntaSelecionada.operador_id)}
-                </div>
-                <div className="detail-row">
-                  <strong>Telefone do Cliente:</strong> {perguntaSelecionada.usuario_telefone || 'Telefone não informado'}
-                </div>
-                <div className="detail-row">
-                  <strong>Data/Hora:</strong> {formatarData(perguntaSelecionada.created_at || perguntaSelecionada.data_hora)}
-                </div>
-                <div className="detail-row">
-                  <strong>Categoria:</strong> {obterNomeCategoria(perguntaSelecionada.categoria_id)}
-                </div>
-              </div>
               
-              <div className="question-text">
-                <h4>Pergunta:</h4>
-                <p>{perguntaSelecionada.pergunta || perguntaSelecionada.texto}</p>
-              </div>
-
-<form id="form-responder" onSubmit={salvarResposta}>
-                <div className="form-group">
-                  <label>Sua Resposta *</label>
-                  <div className="richtext-toolbar">
-                    <button type="button" onClick={() => document.execCommand('bold', false)}><b>B</b></button>
-                    <button type="button" onClick={() => document.execCommand('italic', false)}><i>I</i></button>
-                    <button type="button" onClick={() => document.execCommand('underline', false)}><u>U</u></button>
-                    <button type="button" onClick={() => document.execCommand('insertUnorderedList', false)}>• Lista</button>
+            </div>
+              <div className="modal-body">
+                <div className="modal-info-grid">
+                  <div className="modal-question-panel">
+                    <div className="modal-question-header">
+                      <span className="modal-question-label">Pergunta:</span>
+                    </div>
+                    <div className="modal-question-text">
+                      {perguntaSelecionada.pergunta || perguntaSelecionada.texto}
+                    </div>
                   </div>
-                  <div
-                    className="richtext-editor"
-                    contentEditable
-                    suppressContentEditableWarning={true}
-                    ref={editorRef}
-                    onInput={(e) => setRespostaHtml(e.currentTarget.innerHTML)}
+                  <div className="modal-meta-panel">
+                    <div className="modal-meta-item"><FontAwesomeIcon icon={faUser} /> {obterNomeOperador(perguntaSelecionada.operador_id)}</div>
+                    <div className="modal-meta-item"><FontAwesomeIcon icon={faPhone} /> {perguntaSelecionada.usuario_telefone || 'Telefone não informado'}</div>
+                    <div className="modal-meta-item"><FontAwesomeIcon icon={faCalendar} /> {formatarData(perguntaSelecionada.created_at || perguntaSelecionada.data_hora)}</div>
+                    <div className="modal-meta-item"><FontAwesomeIcon icon={faTag} /> {obterNomeCategoria(perguntaSelecionada.categoria_id)}</div>
+                  </div>
+                </div>
+
+              {perguntaSelecionada.status === 'respondida' ? (
+                <div className="modal-answer">
+                  <strong>Resposta:</strong>
+                  <div 
+                    className="modal-answer-content" 
+                    dangerouslySetInnerHTML={{ __html: (perguntaSelecionada.resposta_manual || perguntaSelecionada.resposta || perguntaSelecionada.resposta_texto || perguntaSelecionada.texto_resposta || '') }}
                   />
                 </div>
-              </form>
+              ) : (
+                <form id="form-responder" onSubmit={salvarResposta}>
+                  <div className="form-group">
+                    <label>Sua Resposta *</label>
+                    <div className="richtext-toolbar">
+                      <button type="button" onClick={() => document.execCommand('bold', false)}><b>B</b></button>
+                      <button type="button" onClick={() => document.execCommand('italic', false)}><i>I</i></button>
+                      <button type="button" onClick={() => document.execCommand('underline', false)}><u>U</u></button>
+                      <button type="button" onClick={() => document.execCommand('insertUnorderedList', false)}>• Lista</button>
+                    </div>
+                    <div
+                      className="richtext-editor"
+                      contentEditable
+                      suppressContentEditableWarning={true}
+                      ref={editorRef}
+                      onInput={(e) => setRespostaHtml(e.currentTarget.innerHTML)}
+                    />
+                  </div>
+                </form>
+              )}
  
               
             </div>
             <div className="modal-actions">
               <button 
                 type="button" 
-                className="btn-secondary" 
+                className="btn-secondary btn-cancel" 
                 onClick={fecharModal}
                 disabled={salvandoResposta}
               >
                 Cancelar
               </button>
-              <button 
-                type="submit"
-                form="form-responder"
-                className="btn-primary"
-                disabled={salvandoResposta}
-              >
-                {salvandoResposta ? '💾 Salvando...' : '💾 Salvar Resposta'}
-              </button>
+              {perguntaSelecionada.status === 'respondida' ? (
+                <button 
+                  type="button"
+                  className="btn-secondary btn-delete"
+                  onClick={() => apagarResposta(perguntaSelecionada.id)}
+                  disabled={salvandoResposta}
+                >
+                  Apagar Resposta
+                </button>
+              ) : (
+                <button 
+                  type="submit"
+                  form="form-responder"
+                  className="btn-primary"
+                  disabled={salvandoResposta}
+                >
+                  {salvandoResposta ? 'Salvando...' : 'Salvar Resposta'}
+                </button>
+              )}
             </div>
           </div>
         </div>

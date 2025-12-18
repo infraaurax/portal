@@ -40,17 +40,25 @@ const filaSimplificadaService = {
       }
 
       console.log('✅ Atendimento aceito com sucesso:', data[0]);
-      const { data: maxPosToken } = await supabase
+      const { data: operadorPerfilRow } = await supabase
         .from('operadores')
-        .select('pos_token')
-        .not('pos_token', 'is', null)
-        .order('pos_token', { ascending: false })
-        .limit(1);
-      const novoPos = (maxPosToken && maxPosToken.length > 0) ? maxPosToken[0].pos_token + 1 : 1;
-      await supabase
-        .from('operadores')
-        .update({ pos_token: novoPos, updated_at: new Date().toISOString() })
-        .eq('id', operadorId);
+        .select('perfil')
+        .eq('id', operadorId)
+        .single();
+      const isAdmin = (operadorPerfilRow?.perfil || '').toLowerCase() === 'admin';
+      if (!isAdmin) {
+        const { data: maxPosToken } = await supabase
+          .from('operadores')
+          .select('pos_token')
+          .not('pos_token', 'is', null)
+          .order('pos_token', { ascending: false })
+          .limit(1);
+        const novoPos = (maxPosToken && maxPosToken.length > 0) ? maxPosToken[0].pos_token + 1 : 1;
+        await supabase
+          .from('operadores')
+          .update({ pos_token: novoPos, updated_at: new Date().toISOString() })
+          .eq('id', operadorId);
+      }
       return { success: true, data: data[0] };
       
     } catch (error) {
@@ -86,14 +94,23 @@ const filaSimplificadaService = {
 
       const novoPos = (maxPosToken && maxPosToken.length > 0) ? maxPosToken[0].pos_token + 1 : 1;
 
-      // 2. Atualizar pos_token do operador (mover para final da fila)
-      const { error: errorOperador } = await supabase
+      const { data: operadorPerfilRow } = await supabase
         .from('operadores')
-        .update({
-          pos_token: novoPos,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', operadorId);
+        .select('perfil')
+        .eq('id', operadorId)
+        .single();
+      const isAdmin = (operadorPerfilRow?.perfil || '').toLowerCase() === 'admin';
+      let errorOperador = null;
+      if (!isAdmin) {
+        const { error } = await supabase
+          .from('operadores')
+          .update({
+            pos_token: novoPos,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', operadorId);
+        errorOperador = error || null;
+      }
 
       if (errorOperador) {
         console.error('❌ Erro ao atualizar pos_token do operador:', errorOperador);
